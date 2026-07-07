@@ -467,6 +467,21 @@ td{padding:8px 6px;border-top:1px solid var(--line)}
 <div id="toasts"></div>
 <div id="loader"><div class="spin"></div><div id="loadmsg">KI denkt nach…</div></div>
 
+<!-- ═══ AUTH-GATE: App ist erst nach Login nutzbar (Cloud-Sync auf allen Geräten) ═══ -->
+<div id="authGate" style="position:fixed;inset:0;z-index:500;background:var(--body-bg);display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto">
+  <div class="card" style="max-width:400px;width:100%">
+    <div style="font-family:'Sora','Inter',sans-serif;font-weight:800;font-size:26px;letter-spacing:.5px;text-align:center;margin-bottom:6px">APEX <span style="background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent">FIT</span></div>
+    <p class="sub" style="text-align:center;margin-bottom:4px">Melde dich an, damit deine Daten automatisch gesichert und auf allen Geräten synchronisiert werden.</p>
+    <label>E-Mail</label><input type="email" id="gateEmail" autocomplete="email" placeholder="du@mail.de">
+    <label>Passwort</label><input type="password" id="gatePass" autocomplete="current-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')gateAuth('signInWithEmailAndPassword')">
+    <div class="row" style="margin-top:16px">
+      <button class="btn" style="flex:1;justify-content:center" onclick="gateAuth('signInWithEmailAndPassword')">Login</button>
+      <button class="btn ghost" style="flex:1;justify-content:center" onclick="gateAuth('createUserWithEmailAndPassword')">Registrieren</button>
+    </div>
+    <p class="sub" id="gateStatus" style="margin-top:12px;text-align:center"></p>
+  </div>
+</div>
+
 <!-- ═══ 3D HERO (Three.js Hantel) ═══ -->
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
@@ -614,7 +629,8 @@ const DEFAULTS = {
   prefs:{vorliebe:'alles',nogos:[],autoPlan:true},
   workerUrl:'',
   meals:{}, biometrics:[], supplements:[], plans:[], logs:[],
-  skills:{}, skillLogs:[], dailyPlans:{}, recipes:[], tips:null, coach:null
+  skills:{}, skillLogs:[], dailyPlans:{}, recipes:[], tips:null, coach:null,
+  recentRecipeNames:[]
 };
 let S; try{S = Object.assign(structuredClone(DEFAULTS), JSON.parse(localStorage.getItem('apexfit'))||{});}catch{S=structuredClone(DEFAULTS);}
 S.workerUrl=APP_CONFIG.workerUrl; // zentral vorgegeben
@@ -816,10 +832,28 @@ function delNogo(i){S.prefs.nogos.splice(i,1);save();renderNogos();}
 function renderNogos(){$('#nogoChips').innerHTML=S.prefs.nogos.map((n,i)=>
   `<span class="chip">🚫 ${esc(n)}<button onclick="delNogo(${i})">✕</button></span>`).join('')||'<span class="sub">Keine No-Gos definiert.</span>';}
 function prefsContext(){S.prefs.vorliebe=$('#prefVorliebe')?.value||S.prefs.vorliebe;save();
-  return {vorlieben:S.prefs.vorliebe,no_gos:S.prefs.nogos,ziel_makros:S.targets,profil:S.profile};}
+  return {vorlieben:S.prefs.vorliebe,no_gos:S.prefs.nogos,ziel_makros:S.targets,profil:S.profile,
+    nicht_wiederholen:(S.recentRecipeNames||[]).slice(-30),zufall:uid()+Date.now()};}
+// prüft Rezeptname + alle Zutaten gegen die No-Go-Liste (Teilstring, case-insensitive)
+function nogoHits(r){
+  const strs=[(r?.name||''),...(r?.zutaten||[]).map(z=>z?.name||'')].map(s=>s.toLowerCase());
+  return (S.prefs.nogos||[]).filter(n=>{const g=n.toLowerCase().trim();return g&&strs.some(s=>s.includes(g));});
+}
+function rememberNames(names){
+  S.recentRecipeNames=[...(S.recentRecipeNames||[]),...names.filter(Boolean)].slice(-40);save();
+}
 async function genRecipes(){
-  const res=await aiCall('recipes',{context:prefsContext()},'Rezepte werden kreiert…');
-  window._genRecipes=res.rezepte||[];renderRecipes();toast('3 neue Rezepte ✓');
+  let res=await aiCall('recipes',{context:prefsContext()},'Rezepte werden kreiert…');
+  let rec=res.rezepte||[];
+  const bad=[...new Set(rec.flatMap(nogoHits))];
+  if(bad.length){ // KI hat No-Gos ignoriert → ein strenger zweiter Versuch, Rest wird gefiltert
+    const ctx=prefsContext();
+    ctx.hinweis='Dein letzter Versuch enthielt verbotene No-Go-Zutaten: '+bad.join(', ')+'. Erzeuge 3 komplett neue Rezepte, die diese Zutaten garantiert NICHT enthalten.';
+    res=await aiCall('recipes',{context:ctx},'No-Gos entfernt – neuer Versuch…');
+    rec=(res.rezepte||[]).filter(r=>!nogoHits(r).length);
+  }
+  window._genRecipes=rec;rememberNames(rec.map(r=>r.name));
+  renderRecipes();toast(rec.length+' neue Rezepte ✓');
 }
 function recipeCard(r,idx,saved){
   const port=r._port||r.portionen||1, f=port/(r.portionen||1);
@@ -851,8 +885,16 @@ function trackRecipe(idx,saved){
 async function genDailyPlan(force){
   const d=todayStr();
   if(!force&&S.dailyPlans[d])return renderRecipes();
-  const res=await aiCall('daily_plan',{context:prefsContext()},'Tagesplan wird erstellt…');
-  S.dailyPlans[d]=res;save();renderRecipes();toast('Tagesplan für heute ✓');
+  let res=await aiCall('daily_plan',{context:prefsContext()},'Tagesplan wird erstellt…');
+  const meals=p=>[p?.fruehstueck,p?.mittagessen,p?.abendessen].filter(Boolean);
+  const bad=[...new Set(meals(res).flatMap(nogoHits))];
+  if(bad.length){
+    const ctx=prefsContext();
+    ctx.hinweis='Dein letzter Tagesplan enthielt verbotene No-Go-Zutaten: '+bad.join(', ')+'. Erstelle einen neuen Plan, der diese Zutaten garantiert NICHT enthält.';
+    res=await aiCall('daily_plan',{context:ctx},'No-Gos entfernt – neuer Versuch…');
+  }
+  S.dailyPlans[d]=res;rememberNames(meals(res).map(m=>m.name));
+  save();renderRecipes();toast('Tagesplan für heute ✓');
 }
 function planMealCard(title,r){
   if(!r)return '';
@@ -1365,9 +1407,34 @@ $('#photoInput').onchange=async e=>{
 };
 
 /* ─── WOCHENPLAN & EINKAUFSLISTE ─── */
+// Einkaufsliste wird lokal aus den 21 Mahlzeiten aggregiert – passt damit garantiert zum Plan
+function buildShoppingList(tage){
+  const map={};
+  for(const t of tage||[])for(const m of [t.fruehstueck,t.mittagessen,t.abendessen])for(const z of (m?.zutaten||[])){
+    const key=(z.name||'').toLowerCase().trim()+'|'+(z.einheit||'').toLowerCase().trim();
+    if(!map[key])map[key]={name:z.name,einheit:z.einheit||'',menge:0};
+    map[key].menge+=+z.menge||0;
+  }
+  return Object.values(map).sort((a,b)=>String(a.name).localeCompare(String(b.name),'de'));
+}
 async function genWeeklyPlan(){
-  const res=await aiCall('weekly_plan',{context:prefsContext()},'Wochenplan wird erstellt… (kann eine Minute dauern)');
-  S.weeklyPlan={created:todayStr(),checked:{},tage:res.tage||[],einkaufsliste:res.einkaufsliste||[]};
+  let res=await aiCall('weekly_plan',{context:prefsContext()},'Wochenplan wird erstellt… (kann eine Minute dauern)');
+  let tage=res.tage||[];
+  const meals=t=>[t.fruehstueck,t.mittagessen,t.abendessen].filter(Boolean);
+  const all=()=>tage.flatMap(meals);
+  const names=all().map(m=>(m.name||'').toLowerCase().trim());
+  const bad=[...new Set(all().flatMap(nogoHits))];
+  const zuGleich=names.length&&new Set(names).size<names.length*0.7;
+  if(tage.length&&(bad.length||zuGleich)){
+    const ctx=prefsContext();
+    ctx.hinweis=(bad.length?'Dein letzter Plan enthielt verbotene No-Go-Zutaten: '+bad.join(', ')+'. ':'')
+      +(zuGleich?'Dein letzter Plan hat sich zu oft wiederholt – alle 21 Mahlzeiten müssen unterschiedliche Gerichte sein, kein Tag darf einem anderen gleichen.':'');
+    res=await aiCall('weekly_plan',{context:ctx},'Wird verbessert – zweiter Versuch…');
+    if((res.tage||[]).length)tage=res.tage;
+  }
+  const liste=buildShoppingList(tage);
+  S.weeklyPlan={created:todayStr(),checked:{},tage,einkaufsliste:liste.length?liste:(res.einkaufsliste||[])};
+  rememberNames(tage.flatMap(meals).map(m=>m.name));
   save();renderWeekPlan();toast('Wochenplan für 7 Tage ✓');
 }
 function renderWeekPlan(){
@@ -1433,6 +1500,15 @@ const _renderDash=renderDash;renderDash=function(){_renderDash();renderCharts();
 
 /* ─── CLOUD-SYNC (Firebase: Registrierung / Login / Firestore) ─── */
 let fbUser=null,cloudTimer=null;
+function showGate(on){const g=$('#authGate');if(g)g.style.display=on?'flex':'none';}
+async function gateAuth(method){
+  const em=$('#gateEmail').value.trim(),pw=$('#gatePass').value;
+  if(!em||!pw)return toast('E-Mail und Passwort eingeben','err');
+  $('#gateStatus').textContent='Einen Moment…';
+  try{await firebase.auth()[method](em,pw);
+    toast(method.startsWith('create')?'Account erstellt ✓':'Eingeloggt ✓');
+  }catch(e){$('#gateStatus').textContent='Fehler: '+(e.message||e.code);}
+}
 async function initFirebase(){
   if(!APP_CONFIG.firebase?.apiKey){updateFbStatus();return;}
   try{
@@ -1440,8 +1516,24 @@ async function initFirebase(){
     await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js');
     await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js');
     if(!firebase.apps.length)firebase.initializeApp(APP_CONFIG.firebase);
-    firebase.auth().onAuthStateChanged(async u=>{fbUser=u;updateFbStatus();if(u)cloudPull().catch(e=>toast('Sync: '+e.message,'err'));});
-  }catch(e){toast('Firebase-Init fehlgeschlagen: '+e.message,'err');}
+    firebase.auth().onAuthStateChanged(async u=>{
+      fbUser=u;updateFbStatus();
+      if(u){
+        localStorage.setItem('apexfit_uid',u.uid);
+        // anderes Konto auf diesem Gerät? Lokale Daten gehören dem alten Account → frisch starten, Cloud lädt gleich
+        if(S._uid&&S._uid!==u.uid){S=structuredClone(DEFAULTS);S.workerUrl=APP_CONFIG.workerUrl;rerenderAll();}
+        S._uid=u.uid;save();
+        showGate(false);
+        cloudPull().catch(e=>toast('Sync: '+e.message,'err'));
+      }else{
+        showGate(true);
+      }
+    });
+  }catch(e){
+    // Offline / Skripte nicht ladbar: wer hier schon mal eingeloggt war, darf offline weiter
+    if(localStorage.getItem('apexfit_uid')){showGate(false);toast('Offline-Modus – Sync sobald wieder online');}
+    else{const g=$('#gateStatus');if(g)g.textContent='Keine Verbindung – für die erste Anmeldung wird Internet benötigt.';}
+  }
 }
 async function fbAuthDo(method){
   if(!APP_CONFIG.firebase?.apiKey)return toast('Cloud-Sync ist vom Betreiber noch nicht konfiguriert','err');
@@ -1455,14 +1547,14 @@ async function fbAuthDo(method){
 }
 const fbRegister=()=>fbAuthDo('createUserWithEmailAndPassword');
 const fbLogin=()=>fbAuthDo('signInWithEmailAndPassword');
-function fbLogout(){try{firebase.auth().signOut();toast('Ausgeloggt');}catch{}}
+function fbLogout(){try{localStorage.removeItem('apexfit_uid');firebase.auth().signOut();toast('Ausgeloggt');}catch{}}
 async function cloudPull(){
   const doc=await firebase.firestore().collection('apexfit').doc(fbUser.uid).get();
   if(doc.exists){
     const d=doc.data();
     if((d.updatedAt||0)>(S._updatedAt||0)){
       S=Object.assign(structuredClone(DEFAULTS),JSON.parse(d.data));
-      S.workerUrl=APP_CONFIG.workerUrl;
+      S.workerUrl=APP_CONFIG.workerUrl;S._uid=fbUser.uid;
       S._updatedAt=d.updatedAt;save();rerenderAll();
       toast('☁️ Neuere Daten aus der Cloud geladen');
     }else if((S._updatedAt||0)>(d.updatedAt||0)){cloudPush();}
