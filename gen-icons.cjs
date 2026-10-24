@@ -1,4 +1,4 @@
-/* Erzeugt icon-192.png und icon-512.png (Hantel im APEX-Farbverlauf) ohne Abhängigkeiten. */
+/* Erzeugt icon-192.png und icon-512.png (Hantel im Evidence-Fit-Farbverlauf) ohne Abhängigkeiten. */
 const zlib = require('zlib');
 const fs = require('fs');
 

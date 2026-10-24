@@ -1,0 +1,27 @@
+rules_version = '2';
+// Evidence Fit (Projekt fitness-64dbc). In der Firebase-Konsole unter
+// Firestore → Regeln einfügen und veröffentlichen.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Der ganze App-Stand eines Nutzers — nur er selbst.
+    match /apexfit/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Abo-Stand (24.10.2026): schreibt NUR der Worker (Service-Konto, umgeht
+    // die Regeln) aus dem Stripe-Webhook. Der Nutzer darf ihn lesen, aber nie
+    // selbst „aktiv" setzen.
+    match /apexfitBilling/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // Verknüpfung mit Evidence Trading + Einwilligung: ebenfalls nur der
+    // Worker. Lesen darf der Nutzer seine eigene.
+    match /apexfitLinks/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+  }
+}

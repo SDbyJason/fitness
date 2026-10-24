@@ -1,6 +1,6 @@
 {
-  "name": "APEX FIT – KI Fitness Tracker",
-  "short_name": "APEX FIT",
+  "name": "Evidence Fit – KI Fitness Tracker",
+  "short_name": "Evidence Fit",
   "description": "KI-gestütztes Logbuch für Kraft, Calisthenics & Ernährung",
   "start_url": "./index.html",
   "scope": "./",

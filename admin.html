@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="google" content="notranslate">
+<title>Evidence Fit · Admin</title>
+<link rel="icon" href="icon-192.png">
+<style>
+/* Evidence Fit · Admin (24.10.2026). Alle Daten kommen über den Fit-Worker
+   (/api/admin/*), der das Login gegen ADMIN_EMAILS prüft. Diese Seite selbst
+   hat keine Sonderrechte in Firestore. */
+:root{--bg:#f4eee2;--card:#fffdf7;--line:rgba(70,56,34,.14);--txt:#2a2218;--mut:#7a6c58;--acc:#c9481f;--ok:#2f8a4c;--warn:#b7791f;--err:#c0392b;--chip:rgba(70,56,34,.07);color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#0b0a08;--card:#16130f;--line:rgba(212,175,55,.18);--txt:#efe6d2;--mut:#a3967d;--acc:#ecc95f;--ok:#58c27a;--warn:#e0a845;--err:#ef6b5b;--chip:rgba(212,175,55,.09);color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.45 Inter,system-ui,-apple-system,sans-serif}
+button,input,select,textarea{font:inherit;color:inherit}
+.wrap{max-width:1280px;margin:0 auto;padding:20px 16px 60px}
+header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+header h1{font-size:20px;margin:0;font-weight:800}header h1 span{color:var(--acc)}
+header .sp{flex:1}
+.mut{color:var(--mut)}.sm{font-size:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+.btn{border:1px solid var(--line);background:var(--chip);border-radius:9px;padding:7px 12px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--acc)}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+@media (prefers-color-scheme:dark){.btn.pri{color:#1a1408}}
+.btn.dan{color:var(--err);border-color:color-mix(in srgb,var(--err) 40%,transparent)}
+.btn:disabled{opacity:.5;cursor:default}
+input,select,textarea{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:7px 10px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.kpi b{display:block;font-size:24px;font-weight:800;font-variant-numeric:tabular-nums}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.bar input[type=search]{flex:1;min-width:200px}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{text-align:left;font-weight:600;color:var(--mut);padding:8px;border-bottom:1px solid var(--line);cursor:pointer;user-select:none;white-space:nowrap}
+.tbl td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+.tbl tr.row{cursor:pointer}.tbl tr.row:hover td{background:var(--chip)}
+.tbl .num{text-align:right;font-variant-numeric:tabular-nums}
+.scroll{overflow-x:auto}
+.pill{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:600;background:var(--chip);white-space:nowrap}
+.pill.fit{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
+.pill.pro{background:color-mix(in srgb,var(--acc) 18%,transparent);color:var(--acc)}
+.pill.comp{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.pill.off{background:color-mix(in srgb,var(--err) 16%,transparent);color:var(--err)}
+#login{max-width:380px;margin:12vh auto}
+#login label{display:block;font-size:12px;color:var(--mut);margin:10px 0 4px}
+#login input{width:100%}
+/* Detail-Schublade */
+#drawer{position:fixed;inset:0 0 0 auto;width:min(720px,100%);background:var(--card);border-left:1px solid var(--line);box-shadow:-20px 0 60px rgba(0,0,0,.25);transform:translateX(100%);transition:transform .2s;z-index:20;display:flex;flex-direction:column}
+#drawer.open{transform:none}
+#drawer .hd{padding:16px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:flex-start}
+#drawer .bd{padding:16px;overflow-y:auto;flex:1}
+.tabs{display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap}
+.tabs button{border:0;background:none;padding:6px 10px;border-radius:8px;cursor:pointer;color:var(--mut)}
+.tabs button.on{background:var(--chip);color:var(--txt);font-weight:600}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.grid2 label{display:block;font-size:12px;color:var(--mut);margin-bottom:3px}
+.grid2 input,.grid2 select{width:100%}
+dl.kv{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:0}
+dl.kv dt{color:var(--mut)}dl.kv dd{margin:0;word-break:break-all}
+textarea#json{width:100%;min-height:52vh;font:12px/1.4 ui-monospace,Menlo,monospace;white-space:pre;tab-size:2}
+.sec{margin:16px 0 8px;font-weight:700}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--txt);color:var(--bg);padding:9px 16px;border-radius:10px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:40}
+#toast.show{opacity:1}#toast.err{background:var(--err);color:#fff}
+.empty{padding:30px;text-align:center;color:var(--mut)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="login" class="card" hidden>
+    <h1 style="margin:0 0 4px;font-size:20px">Evidence <span style="color:var(--acc)">Fit</span> · Admin</h1>
+    <p class="mut sm" style="margin:0">Nur für freigeschaltete Admin-Adressen.</p>
+    <label>E-Mail</label><input type="email" id="lgEmail" autocomplete="email">
+    <label>Passwort</label><input type="password" id="lgPass" autocomplete="current-password" onkeydown="if(event.key==='Enter')Adm.login()">
+    <div style="margin-top:14px;display:flex;gap:8px"><button class="btn pri" onclick="Adm.login()">Anmelden</button></div>
+    <p class="sm" id="lgMsg" style="color:var(--err);min-height:1em"></p>
+  </div>
+
+  <div id="app" hidden>
+    <header>
+      <h1>Evidence <span>Fit</span> · Admin</h1>
+      <span class="sp"></span>
+      <span class="mut sm" id="who"></span>
+      <button class="btn" onclick="Adm.load()">Aktualisieren</button>
+      <button class="btn" onclick="Adm.csv()">CSV</button>
+      <button class="btn" onclick="Adm.logout()">Abmelden</button>
+    </header>
+    <div class="kpis" id="kpis"></div>
+    <div class="card">
+      <div class="bar">
+        <input type="search" id="q" placeholder="Suchen: E-Mail, Name, UID …" oninput="Adm.render()">
+        <select id="fPlan" onchange="Adm.render()">
+          <option value="">Alle</option><option value="fit">Fit-Abo</option><option value="comp">Geschenkt</option>
+          <option value="pro">Über Evidence Pro verbunden</option><option value="linked">Mit Evidence verbunden</option>
+          <option value="free">Kostenlos</option><option value="active7">Aktiv letzte 7 Tage</option>
+          <option value="disabled">Gesperrt</option><option value="orphan">Daten ohne Konto</option>
+        </select>
+        <span class="mut sm" id="cnt"></span>
+      </div>
+      <div class="scroll"><table class="tbl"><thead><tr id="th"></tr></thead><tbody id="tb"></tbody></table></div>
+    </div>
+  </div>
+</div>
+
+<div id="drawer" aria-hidden="true">
+  <div class="hd">
+    <div style="flex:1;min-width:0"><b id="dTitle" style="font-size:16px"></b><div class="mut sm" id="dSub"></div></div>
+    <button class="btn" onclick="Adm.close()" aria-label="Schließen">✕</button>
+  </div>
+  <div class="bd" id="dBody"></div>
+</div>
+<div id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script>
+(function(){
+  'use strict';
+  var CFG = {
+    worker: 'https://fitness.4kjyyyftv6.workers.dev',
+    firebase: { apiKey:"AIzaSyCT8saSu9ZG2uC8Ko-yKep2ibW-T2opvbo", authDomain:"fitness-64dbc.firebaseapp.com", projectId:"fitness-64dbc",
+      storageBucket:"fitness-64dbc.firebasestorage.app", messagingSenderId:"466821207798", appId:"1:466821207798:web:ace96b3a2fb6f1e880fed7" }
+  };
+  // Lokal testen gegen einen anderen Worker: ?worker=http://localhost:8787
+  var qw = new URLSearchParams(location.search).get('worker'); if (qw) CFG.worker = qw;
+
+  var A = window.Adm = {}, rows = [], sort = { k: 'created', d: -1 }, cur = null, curTab = 'ov';
+  var $ = function(s){ return document.querySelector(s); };
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function d(ts){ return ts ? new Date(ts).toLocaleDateString('de-DE') : '–'; }
+  function dt(ts){ return ts ? new Date(ts).toLocaleString('de-DE',{dateStyle:'short',timeStyle:'short'}) : '–'; }
+  function ago(ts){ if(!ts) return '–'; var m=(Date.now()-ts)/6e4; return m<60?Math.round(m)+' min':m<1440?Math.round(m/60)+' h':Math.round(m/1440)+' T'; }
+  function kb(n){ return n ? (n/1024).toFixed(n<10240?1:0)+' KB' : '–'; }
+  function toast(m, err){ var t=$('#toast'); t.textContent=m; t.className='show'+(err?' err':''); clearTimeout(t._h); t._h=setTimeout(function(){t.className='';},2600); }
+
+  firebase.initializeApp(CFG.firebase);
+  var auth = firebase.auth();
+
+  async function call(path, body){
+    var u = auth.currentUser; if (!u) throw new Error('not_signed_in');
+    var r = await fetch(CFG.worker + path, { method: body===undefined?'GET':'POST',
+      headers: { 'Content-Type':'application/json', Authorization: 'Bearer ' + await u.getIdToken() },
+      body: body===undefined ? undefined : JSON.stringify(body) });
+    var j = {}; try { j = await r.json(); } catch(e){}
+    if (!r.ok) { var e = new Error(j.error || ('HTTP '+r.status)); e.status = r.status; e.detail = j.detail; throw e; }
+    return j;
+  }
+  function plan(r){
+    if (r.orphan) return 'orphan';
+    if (r.billing && r.billing.active) return r.billing.status === 'comp' ? 'comp' : 'fit';
+    return r.link ? 'linked' : 'free';
+  }
+  function pill(r){
+    var p = plan(r), h = '';
+    if (p==='fit') h += '<span class="pill fit">Fit-Abo</span> ';
+    if (p==='comp') h += '<span class="pill comp">Geschenkt bis '+d(r.billing.until)+'</span> ';
+    if (r.link) h += '<span class="pill pro">Evidence</span> ';
+    if (p==='free') h += '<span class="pill">Free</span> ';
+    if (r.disabled) h += '<span class="pill off">Gesperrt</span> ';
+    if (r.orphan) h += '<span class="pill off">Ohne Konto</span> ';
+    return h;
+  }
+
+  /* ── Login ── */
+  A.login = async function(){
+    $('#lgMsg').textContent = '';
+    try { await auth.signInWithEmailAndPassword($('#lgEmail').value.trim(), $('#lgPass').value); }
+    catch(e){ $('#lgMsg').textContent = 'Anmeldung fehlgeschlagen.'; }
+  };
+  A.logout = function(){ auth.signOut(); };
+  auth.onAuthStateChanged(function(u){
+    $('#login').hidden = !!u; $('#app').hidden = !u;
+    if (u) { $('#who').textContent = u.email; A.load(); } else { rows = []; A.close(); }
+  });
+
+  /* ── Liste ── */
+  A.load = async function(){
+    $('#tb').innerHTML = '<tr><td colspan="9" class="empty">Lädt …</td></tr>';
+    try { var j = await call('/api/admin/users'); rows = j.users || []; A.render(); }
+    catch(e){
+      var msg = e.status===403 ? 'Diese Adresse ist kein Admin (ADMIN_EMAILS im Worker).' : e.status===404 || e.message==='Failed to fetch' ? 'Worker ohne Admin-Routen – bitte neu deployen.' : 'Fehler: '+(e.detail||e.message);
+      $('#tb').innerHTML = '<tr><td colspan="9" class="empty">'+esc(msg)+'</td></tr>'; $('#kpis').innerHTML='';
+    }
+  };
+  var COLS = [['email','Konto'],['plan','Status'],['name','Name'],['created','Seit'],['lastLogin','Letzter Login'],['updatedAt','Letzter Sync'],['mealDays','Ess-Tage','num'],['workouts','Trainings','num'],['bytes','Daten','num']];
+  A.sort = function(k){ sort = { k:k, d: sort.k===k ? -sort.d : -1 }; A.render(); };
+  A.render = function(){
+    var now = Date.now(), wk = now - 7*864e5;
+    var k = [['Konten', rows.filter(function(r){return !r.orphan;}).length],
+      ['Fit-Abo', rows.filter(function(r){return plan(r)==='fit';}).length],
+      ['Geschenkt', rows.filter(function(r){return plan(r)==='comp';}).length],
+      ['Mit Evidence', rows.filter(function(r){return r.link;}).length],
+      ['Aktiv 7 Tage', rows.filter(function(r){return Math.max(r.lastLogin||0,r.updatedAt||0)>wk;}).length],
+      ['Neu 30 Tage', rows.filter(function(r){return r.created>now-30*864e5;}).length]];
+    var eur = rows.filter(function(r){return plan(r)==='fit' && r.billing.currency!=='usd';}).length, usd = rows.filter(function(r){return plan(r)==='fit' && r.billing.currency==='usd';}).length;
+    k.push(['Umsatz/Monat', (eur*4.99).toFixed(2).replace('.',',')+' € + $'+(usd*5.59).toFixed(2)]);
+    $('#kpis').innerHTML = k.map(function(x){ return '<div class="card kpi"><span class="mut sm">'+x[0]+'</span><b>'+x[1]+'</b></div>'; }).join('');
+
+    var q = $('#q').value.trim().toLowerCase(), f = $('#fPlan').value;
+    var list = rows.filter(function(r){
+      if (q && (r.email+' '+(r.name||'')+' '+r.uid).toLowerCase().indexOf(q) < 0) return false;
+      var p = plan(r);
+      if (f==='fit'||f==='comp'||f==='free'||f==='orphan') return p===f;
+      if (f==='linked') return !!r.link;
+      if (f==='pro') return !!r.link && !(r.billing && r.billing.active);
+      if (f==='active7') return Math.max(r.lastLogin||0,r.updatedAt||0) > wk;
+      if (f==='disabled') return r.disabled;
+      return true;
+    });
+    list.sort(function(a,b){ var x = sort.k==='plan'?plan(a):a[sort.k], y = sort.k==='plan'?plan(b):b[sort.k];
+      x = x==null?'':x; y = y==null?'':y; return (x>y?1:x<y?-1:0)*sort.d; });
+    $('#cnt').textContent = list.length + ' von ' + rows.length;
+    $('#th').innerHTML = COLS.map(function(c){ return '<th class="'+(c[2]||'')+'" onclick="Adm.sort(\''+c[0]+'\')">'+c[1]+(sort.k===c[0]?(sort.d<0?' ↓':' ↑'):'')+'</th>'; }).join('');
+    $('#tb').innerHTML = list.length ? list.map(function(r){
+      return '<tr class="row" onclick="Adm.open(\''+esc(r.uid)+'\')">'+
+        '<td><b>'+esc(r.email||'—')+'</b>'+(r.email && !r.verified?' <span class="mut sm">(unbestätigt)</span>':'')+'<div class="mut sm">'+esc(r.uid)+'</div></td>'+
+        '<td>'+pill(r)+'</td><td>'+esc(r.name||'')+'<div class="mut sm">'+esc(r.ziel||'')+'</div></td>'+
+        '<td>'+d(r.created)+'</td><td>'+ago(r.lastLogin)+'</td><td>'+ago(r.updatedAt)+'</td>'+
+        '<td class="num">'+(r.mealDays||0)+'</td><td class="num">'+(r.workouts||0)+'</td><td class="num">'+kb(r.bytes)+'</td></tr>';
+    }).join('') : '<tr><td colspan="9" class="empty">Keine Treffer.</td></tr>';
+  };
+  A.csv = function(){
+    var h = ['uid','email','status','name','ziel','erstellt','letzter_login','letzter_sync','ess_tage','trainings','evidence_verbunden','abo_bis','waehrung'];
+    var lines = [h.join(';')].concat(rows.map(function(r){
+      return [r.uid,r.email,plan(r),r.name||'',r.ziel||'',d(r.created),dt(r.lastLogin),dt(r.updatedAt),r.mealDays||0,r.workouts||0,r.link?'ja':'nein',r.billing?d(r.billing.until):'',r.billing&&r.billing.currency||'']
+        .map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(';');
+    }));
+    var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿'+lines.join('\n')],{type:'text/csv'}));
+    a.download = 'evidence-fit-nutzer-'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
+  };
+
+  /* ── Detail ── */
+  A.open = async function(uid){
+    var r = rows.filter(function(x){return x.uid===uid;})[0]; if (!r) return;
+    cur = { row: r, state: null }; curTab = 'ov';
+    $('#dTitle').textContent = r.email || '(ohne Konto)'; $('#dSub').textContent = r.uid;
+    $('#drawer').classList.add('open'); $('#drawer').setAttribute('aria-hidden','false');
+    $('#dBody').innerHTML = '<div class="empty">Lädt …</div>';
+    try { var j = await call('/api/admin/user?uid='+encodeURIComponent(uid)); if (!cur || cur.row.uid!==uid) return; cur.state = j.state; cur.plan = j.plan; A.tab(curTab); }
+    catch(e){ $('#dBody').innerHTML = '<div class="empty">Fehler: '+esc(e.detail||e.message)+'</div>'; }
+  };
+  A.close = function(){ cur = null; $('#drawer').classList.remove('open'); $('#drawer').setAttribute('aria-hidden','true'); };
+  document.addEventListener('keydown', function(e){ if (e.key==='Escape' && cur) A.close(); });
+
+  A.tab = function(t){
+    curTab = t; var r = cur.row, s = cur.state || {};
+    var tabs = [['ov','Übersicht'],['edit','Profil & Ziele'],['data','Daten'],['json','JSON']];
+    var h = '<div class="tabs">'+tabs.map(function(x){ return '<button class="'+(x[0]===t?'on':'')+'" onclick="Adm.tab(\''+x[0]+'\')">'+x[1]+'</button>'; }).join('')+'</div>';
+    if (t==='ov') {
+      var b = r.billing, l = r.link;
+      h += '<dl class="kv">'+
+        '<dt>Status</dt><dd>'+pill(r)+(cur.plan?' <span class="mut sm">Zugang: '+esc(cur.plan.plan)+'</span>':'')+'</dd>'+
+        '<dt>Konto seit</dt><dd>'+dt(r.created)+'</dd><dt>Letzter Login</dt><dd>'+dt(r.lastLogin)+'</dd><dt>Letzter Sync</dt><dd>'+dt(r.updatedAt)+'</dd>'+
+        '<dt>Anmeldung</dt><dd>'+esc((r.providers||[]).join(', ')||'–')+(r.verified?' · E-Mail bestätigt':'')+'</dd>'+
+        '<dt>Abo</dt><dd>'+(b?esc(b.status)+' · bis '+d(b.until)+(b.currency?' · '+esc(b.currency.toUpperCase()):''):'keins')+'</dd>'+
+        '<dt>Evidence</dt><dd>'+(l?'verbunden seit '+esc(String(l.linkedAt).slice(0,10))+' · teilt '+esc(Object.keys(l.consent||{}).filter(function(k){return l.consent[k];}).join(', ')||'nichts')+'<div class="mut sm">'+esc(l.evidenceUid)+'</div>':'nein')+'</dd>'+
+        '<dt>Daten</dt><dd>'+(r.mealDays||0)+' Ess-Tage · '+(r.workouts||0)+' Trainings · '+(r.bio||0)+' Körperwerte · '+(r.recipes||0)+' Rezepte · '+kb(r.bytes)+'</dd>'+
+        '<dt>Einwilligung Art. 9</dt><dd>'+(s.consentHealthAt?dt(s.consentHealthAt):'<span style="color:var(--warn)">nicht gespeichert</span>')+'</dd>'+
+        '</dl>'+
+        '<div class="sec">Abo</div><div class="acts">'+
+          '<button class="btn" onclick="Adm.comp(30)">30 Tage schenken</button><button class="btn" onclick="Adm.comp(365)">1 Jahr schenken</button>'+
+          '<button class="btn" onclick="Adm.comp(36500)">Dauerhaft</button>'+
+          (b && b.status==='comp' ? '<button class="btn dan" onclick="Adm.comp(0)">Geschenk beenden</button>' : '')+
+        '</div><p class="mut sm">Ein bezahltes Stripe-Abo beendest du im Stripe-Dashboard; hier nur geschenkte Zugänge.</p>'+
+        '<div class="sec">Konto</div><div class="acts">'+
+          (l ? '<button class="btn" onclick="Adm.unlink()">Evidence-Verbindung trennen</button>' : '')+
+          (!r.orphan ? '<button class="btn" onclick="Adm.disable('+(!r.disabled)+')">'+(r.disabled?'Login freigeben':'Login sperren')+'</button>' : '')+
+          '<button class="btn" onclick="Adm.export()">Daten exportieren (DSGVO)</button>'+
+          '<button class="btn dan" onclick="Adm.del()">Konto & Daten löschen</button>'+
+        '</div>';
+    }
+    if (t==='edit') {
+      var p = s.profile || {}, g = s.targets || {};
+      var f = function(id,lab,val,type){ return '<div><label>'+lab+'</label><input id="e_'+id+'" type="'+(type||'text')+'" value="'+esc(val==null?'':val)+'"></div>'; };
+      h += !cur.state ? '<div class="empty">Noch kein gespeicherter App-Stand.</div>' :
+        '<div class="sec" style="margin-top:0">Profil</div><div class="grid2">'+
+          f('name','Name',p.name)+f('gewicht','Gewicht (kg)',p.gewicht,'number')+f('groesse','Größe (cm)',p.groesse,'number')+
+          f('kfa','Körperfett (%)',p.kfa,'number')+f('alter','Alter',p.alter,'number')+
+          '<div><label>Geschlecht</label><select id="e_geschlecht"><option value="m"'+(p.geschlecht==='m'?' selected':'')+'>m</option><option value="w"'+(p.geschlecht==='w'?' selected':'')+'>w</option></select></div>'+
+          f('ziel','Ziel',p.ziel)+
+        '</div><div class="sec">Tagesziele</div><div class="grid2">'+
+          f('kalorien','kcal',g.kalorien,'number')+f('protein','Protein (g)',g.protein,'number')+f('kohlenhydrate','Kohlenhydrate (g)',g.kohlenhydrate,'number')+f('fett','Fett (g)',g.fett,'number')+
+        '</div><div class="sec">Sprache</div><div class="grid2">'+f('lang','Sprache (de/en/…)',s.lang)+'</div>'+
+        '<div class="acts" style="margin-top:16px"><button class="btn pri" onclick="Adm.saveForm()">Speichern</button></div>'+
+        '<p class="mut sm">Wird mit neuem Zeitstempel gespeichert, damit es beim nächsten Abgleich der App gewinnt.</p>';
+    }
+    if (t==='data') {
+      var days = Object.keys(s.meals||{}).sort().reverse().slice(0,30);
+      h += !cur.state ? '<div class="empty">Keine Daten.</div>' :
+        '<div class="sec" style="margin-top:0">Mahlzeiten (letzte 30 Tage)</div>'+
+        (days.length ? '<table class="tbl"><tr><th>Tag</th><th class="num">Einträge</th><th class="num">kcal</th><th class="num">Protein</th><th></th></tr>'+days.map(function(day){
+          var m = s.meals[day] || [], arr = Array.isArray(m) ? m : Object.values(m).reduce(function(a,x){ return a.concat(Array.isArray(x)?x:[x]); },[]);
+          var kc = 0, pr = 0; arr.forEach(function(x){ kc += +(x&&(x.kcal||x.kalorien))||0; pr += +(x&&x.protein)||0; });
+          return '<tr><td>'+esc(day)+'</td><td class="num">'+arr.length+'</td><td class="num">'+Math.round(kc)+'</td><td class="num">'+Math.round(pr)+'</td><td><button class="btn dan sm" onclick="Adm.delKey(\'meals\',\''+esc(day)+'\')">Tag löschen</button></td></tr>';
+        }).join('')+'</table>' : '<p class="mut">Keine.</p>')+
+        '<div class="sec">Trainings (letzte 20)</div>'+
+        ((s.logs||[]).length ? '<table class="tbl"><tr><th>Datum</th><th>Plan / Name</th><th class="num">Übungen</th><th></th></tr>'+(s.logs||[]).map(function(l,i){ return [l,i]; }).slice(-20).reverse().map(function(x){
+          var l = x[0]; return '<tr><td>'+esc(String(l.date||'').slice(0,16).replace('T',' '))+'</td><td>'+esc(l.name||l.planName||'')+'</td><td class="num">'+((l.exercises||l.sets||[]).length||'')+'</td><td><button class="btn dan sm" onclick="Adm.delIdx(\'logs\','+x[1]+')">Löschen</button></td></tr>';
+        }).join('')+'</table>' : '<p class="mut">Keine.</p>')+
+        '<div class="sec">Körperwerte (letzte 20)</div><p class="mut sm" style="margin:0 0 6px">Ändern über den JSON-Reiter – die App gleicht Körperwerte pro Datum ab, Löschen hier käme vom Gerät zurück.</p>'+
+        ((s.biometrics||[]).length ? '<table class="tbl"><tr><th>Datum</th><th>Werte</th><th></th></tr>'+(s.biometrics||[]).map(function(b,i){ return [b,i]; }).slice(-20).reverse().map(function(x){
+          var b = x[0]; return '<tr><td>'+esc(String(b.date||'').slice(0,10))+'</td><td class="sm">'+esc(Object.keys(b).filter(function(k){return k!=='date'&&k!=='id'&&typeof b[k]!=='object';}).map(function(k){return k+': '+b[k];}).join(' · '))+'</td><td></td></tr>';
+        }).join('')+'</table>' : '<p class="mut">Keine.</p>');
+    }
+    if (t==='json') {
+      h += '<p class="mut sm" style="margin-top:0">Kompletter App-Stand. Vorsicht: Speichern überschreibt alles.</p>'+
+        '<textarea id="json" spellcheck="false">'+esc(JSON.stringify(cur.state||{}, null, 2))+'</textarea>'+
+        '<div class="acts" style="margin-top:10px"><button class="btn pri" onclick="Adm.saveJson()">JSON speichern</button><button class="btn" onclick="Adm.tab(\'json\')">Verwerfen</button></div>';
+    }
+    $('#dBody').innerHTML = h;
+  };
+
+  async function saveState(st, msg){
+    try { await call('/api/admin/user', { uid: cur.row.uid, data: st }); cur.state = st; toast(msg||'Gespeichert ✓'); A.load(); A.tab(curTab); }
+    catch(e){ toast('Speichern fehlgeschlagen: '+(e.detail||e.message), true); }
+  }
+  A.saveForm = function(){
+    var st = JSON.parse(JSON.stringify(cur.state)); st.profile = st.profile || {}; st.targets = st.targets || {};
+    ['name','ziel','geschlecht'].forEach(function(k){ st.profile[k] = $('#e_'+k).value; });
+    ['gewicht','groesse','kfa','alter'].forEach(function(k){ var v = $('#e_'+k).value; if (v!=='') st.profile[k] = +v; });
+    ['kalorien','protein','kohlenhydrate','fett'].forEach(function(k){ var v = $('#e_'+k).value; if (v!=='') st.targets[k] = +v; });
+    if ($('#e_lang').value.trim()) st.lang = $('#e_lang').value.trim();
+    saveState(st);
+  };
+  A.saveJson = function(){
+    var st; try { st = JSON.parse($('#json').value); } catch(e){ toast('Kein gültiges JSON: '+e.message, true); return; }
+    if (!st || typeof st!=='object' || Array.isArray(st)) { toast('Der Stand muss ein Objekt sein.', true); return; }
+    if (!confirm('Kompletten Stand von '+(cur.row.email||cur.row.uid)+' überschreiben?')) return;
+    saveState(st);
+  };
+  // Löschen in der App wird über Tombstones synchronisiert — hier ebenso, sonst käme es beim Abgleich zurück.
+  A.delKey = function(coll, key){
+    if (!confirm(coll+' '+key+' löschen?')) return;
+    var st = JSON.parse(JSON.stringify(cur.state)), now = Date.now(); st.tomb = st.tomb||{};
+    (Array.isArray(st[coll][key]) ? st[coll][key] : []).forEach(function(m){ if (m && m.id) st.tomb['meal:'+m.id] = now; });
+    delete st[coll][key];
+    saveState(st, 'Gelöscht ✓');
+  };
+  A.delIdx = function(coll, i){
+    if (!confirm('Eintrag löschen?')) return;
+    var st = JSON.parse(JSON.stringify(cur.state)), it = st[coll][i]; st[coll].splice(i,1);
+    var TK = { logs:'log' }; if (it && it.id) (st.tomb = st.tomb||{})[TK[coll]+':'+it.id] = Date.now();
+    saveState(st, 'Gelöscht ✓');
+  };
+  A.comp = async function(days){
+    try { await call('/api/admin/comp', { uid: cur.row.uid, days: days }); toast(days?'Zugang geschenkt ✓':'Geschenk beendet'); await A.load(); A.open(cur.row.uid); }
+    catch(e){ toast(e.message==='has_stripe_subscription'?'Hat ein bezahltes Abo – bitte in Stripe beenden.':'Fehler: '+(e.detail||e.message), true); }
+  };
+  A.unlink = async function(){
+    if (!confirm('Verbindung trennen? Alle geteilten Tage in Evidence werden gelöscht.')) return;
+    try { await call('/api/admin/unlink', { uid: cur.row.uid }); toast('Getrennt ✓'); await A.load(); A.open(cur.row.uid); }
+    catch(e){ toast('Fehler: '+(e.detail||e.message), true); }
+  };
+  A.disable = async function(on){
+    try { await call('/api/admin/disable', { uid: cur.row.uid, disabled: on }); toast(on?'Login gesperrt':'Login freigegeben'); await A.load(); A.open(cur.row.uid); }
+    catch(e){ toast('Fehler: '+(e.detail||e.message), true); }
+  };
+  A.export = function(){
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify({ konto: cur.row, stand: cur.state }, null, 2)], { type:'application/json' }));
+    a.download = 'evidence-fit-'+(cur.row.email||cur.row.uid).replace(/[^\w.@-]/g,'_')+'.json'; a.click();
+  };
+  A.del = async function(){
+    var who = cur.row.email || cur.row.uid;
+    var t = prompt('Endgültig löschen: Login, App-Daten und Evidence-Verbindung von '+who+'.\nZum Bestätigen die UID eintippen:\n'+cur.row.uid);
+    if (t !== cur.row.uid) { if (t!==null) toast('UID stimmt nicht – nichts gelöscht.', true); return; }
+    try { await call('/api/admin/delete', { uid: cur.row.uid, confirm: cur.row.uid }); toast('Gelöscht ✓'); A.close(); A.load(); }
+    catch(e){ toast('Fehler: '+(e.detail||e.message), true); }
+  };
+})();
+</script>
+</body>
+</html>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>APEX FIT – KI Fitness Tracker</title>
+<title>Evidence Fit – KI Fitness Tracker</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4eee2">
@@ -203,6 +203,18 @@ td{padding:8px 6px;border-top:1px solid var(--line)}
 .check.on{background:var(--grad);color:var(--btn-txt);border-color:transparent;transform:scale(1.08);box-shadow:0 6px 16px var(--btn-shadow2)}
 .ss-tag{font-size:10px;font-weight:800;color:var(--acc);letter-spacing:.5px}
 
+/* skill tree */
+.tree{display:flex;flex-direction:column;gap:8px}
+.step{display:flex;gap:12px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:14px;background:var(--field)}
+.step.done{border-color:var(--acc2)}
+.step.locked{opacity:.45}
+.step .dot{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--track);font-weight:800;flex-shrink:0}
+.step.done .dot{background:var(--acc2);color:#fff}
+.step .info{flex:1;min-width:0}
+.step .info b{font-size:13.5px;display:block}
+.step .info span{font-size:11.5px;color:var(--mut)}
+.bigtime{font-size:44px;font-weight:800;text-align:center;margin:18px 0;font-variant-numeric:tabular-nums}
+
 /* mobile */
 @media(max-width:860px){
   nav{inset:auto 0 0 0;width:100%;flex-direction:row;padding:8px 10px calc(8px + env(safe-area-inset-bottom));
@@ -240,8 +252,9 @@ td{padding:8px 6px;border-top:1px solid var(--line)}
 
 <div class="shell">
 <nav>
-  <div class="logo">APEX <span>FIT</span></div>
+  <div class="logo notranslate" translate="no" data-noi18n>Evidence <span>Fit</span></div>
   <button class="nbtn on" data-tab="dashboard"><span class="ic">◈</span>Dashboard</button>
+  <button class="nbtn" data-tab="insights"><span class="ic">🔗</span>Insights</button>
   <button class="nbtn" data-tab="ernaehrung"><span class="ic">🥗</span>Ernährung</button>
   <button class="nbtn" data-tab="rezepte"><span class="ic">🍳</span>Rezepte</button>
   <button class="nbtn" data-tab="tipps"><span class="ic">💡</span>Tipps</button>
@@ -257,7 +270,7 @@ td{padding:8px 6px;border-top:1px solid var(--line)}
       <div class="txt">
         <h1>Trainiere <em>smarter</em>,<br>nicht nur härter.</h1>
         <p class="sub" style="margin:10px 0 18px">Dein KI-gestütztes Logbuch für Kraft, Calisthenics &amp; Ernährung.</p>
-        <div class="row"><button class="btn" onclick="runCoach()">🤖 KI-Coach fragen</button>
+        <div class="row"><button class="btn" onclick="openCoachChat()">🤖 KI-Coach fragen</button>
         <button class="btn ghost" id="installBtn" style="display:none" onclick="installPWA()">📲 App installieren</button></div>
       </div>
       <div id="hero3d"></div>
@@ -274,13 +287,21 @@ td{padding:8px 6px;border-top:1px solid var(--line)}
           <div><label>Schlaf h</label><input type="number" step="0.5" id="bioSchlaf"></div>
         </div>
         <div class="row" style="margin-top:14px;justify-content:space-between">
-          <div style="flex:1;min-width:130px"><label style="margin-top:0">Schritte</label><input type="number" id="bioSchritte"></div>
+          <div style="flex:1;min-width:110px"><label style="margin-top:0">Schritte</label><input type="number" id="bioSchritte"></div>
+          <div style="flex:1;min-width:90px"><label style="margin-top:0">HRV ms</label><input type="number" id="bioHrv"></div>
           <button class="btn sm" style="margin-top:22px" onclick="saveBio()">Speichern</button>
         </div>
       </div>
       <div class="card" id="dashStats"></div>
+      <div class="card" id="readyCard" style="display:none"></div>
+      <div class="card" id="cycleCard" style="display:none"></div>
     </div>
+    <div class="card" id="insightCard" style="margin-top:16px;display:none"></div>
     <div class="card" id="coachBox" style="margin-top:16px;display:none"></div>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="card" id="measureCard"></div>
+      <div class="card" id="achieveCard"></div>
+    </div>
     <h2>📈 Verlauf</h2>
     <div class="grid g3">
       <div class="card"><b style="font-size:13px">Gewicht (30 Tage)</b><canvas id="chGewicht" style="width:100%;height:150px;margin-top:8px"></canvas></div>
@@ -289,23 +310,46 @@ td{padding:8px 6px;border-top:1px solid var(--line)}
     </div>
   </section>
 
+  <!-- ═══ INSIGHTS: Cross-Domain-Korrelations-Engine ═══ -->
+  <section class="tab" id="tab-insights">
+    <h1>Insights</h1>
+    <p class="sub">Andere Apps tracken Zahlen. <span class="notranslate" translate="no">Evidence Fit</span> findet die Verbindungen zwischen ihnen – Schlaf × Training × Ernährung × Supplements, alles aus deinen echten Daten.</p>
+    <div class="grid g2">
+      <div class="card" id="readinessCard"></div>
+      <div class="card" id="tdeeCard"></div>
+    </div>
+    <h2>🔗 Korrelationen <span style="font-weight:400;color:var(--mut);font-size:13px">lokal aus deinen Daten berechnet – keine KI-Halluzination</span></h2>
+    <div class="row" style="margin-bottom:12px">
+      <button class="btn sm" onclick="aiInsights()">🤖 KI-Interpretation &amp; Empfehlungen</button>
+    </div>
+    <div class="grid g2" id="corrBox"></div>
+    <div id="insightAiBox" style="margin-top:16px"></div>
+  </section>
+
   <!-- ═══ ERNÄHRUNG ═══ -->
   <section class="tab" id="tab-ernaehrung">
     <h1>Ernährung</h1>
     <p class="sub">KI-Scanner: Foto, Verpackung, Text oder Sprachnachricht – inkl. Mikronährstoff-Matrix.</p>
     <div class="mini3d" id="nutri3d"></div>
-    <div class="row" style="margin-bottom:18px">
-      <input type="date" id="nutriDate" style="max-width:170px">
-      <button class="btn sm" onclick="scanPhoto('food_photo')">📷 Essen fotografieren</button>
-      <button class="btn sm" onclick="scanBarcodeLive()">📡 Barcode-Scanner</button>
-      <button class="btn sm" onclick="scanPhoto('barcode_label')">🏷️ Verpackung (KI)</button>
-      <button class="btn sm ghost" onclick="openTextMeal()">⌨️ Text</button>
-      <button class="btn sm ghost" onclick="openAudioMeal()">🎤 Audio</button>
-      <button class="btn sm ghost" onclick="openManualMeal()">✍️ Manuell</button>
-      <button class="btn sm ghost" onclick="copyYesterday()">↩️ Gestern kopieren</button>
-      <input type="file" id="photoInput" accept="image/*" capture="environment" hidden>
+    <div class="card" style="margin-bottom:18px">
+      <div class="row" style="justify-content:space-between;margin-bottom:10px">
+        <b>➕ Mahlzeit tracken</b>
+        <input type="date" id="nutriDate" style="max-width:170px">
+      </div>
+      <div class="row">
+        <button class="btn sm" onclick="scanPhoto('food_photo')">📷 Essen fotografieren</button>
+        <button class="btn sm" onclick="scanBarcodeLive()">📡 Barcode-Scanner</button>
+        <button class="btn sm" onclick="scanPhoto('barcode_label')">🏷️ Verpackung (KI)</button>
+        <button class="btn sm ghost" onclick="openTextMeal()">⌨️ Text</button>
+        <button class="btn sm ghost" onclick="openAudioMeal()">🎤 Audio</button>
+        <button class="btn sm ghost" onclick="openManualMeal()">✍️ Manuell</button>
+        <button class="btn sm ghost" onclick="openRestaurantMeal()">🍽️ Auswärts</button>
+        <button class="btn sm ghost" onclick="copyYesterday()">↩️ Gestern kopieren</button>
+      </div>
+      <input type="file" id="photoInput" accept="image/*" hidden>
     </div>
     <div class="grid g4" id="nutriRings" style="margin-bottom:18px"></div>
+    <div class="card" id="fastCard" style="margin-bottom:18px"></div>
     <div class="card" id="waterCard" style="margin-bottom:18px"></div>
     <div class="card"><div id="mealList"></div></div>
     <h2>🔬 Mikronährstoff-Matrix (Tag)</h2>
@@ -343,6 +387,8 @@ td{padding:8px 6px;border-top:1px solid var(--line)}
         </label>
       </div>
     </div>
+    <h2 id="recipeBoxTitle">✨ Generierte Rezepte</h2>
+    <div class="grid g3" id="recipeBox"></div>
     <h2>🗓️ Tagesplan heute <span style="font-weight:400;color:var(--mut);font-size:13px">(Frühstück · Mittag · Abend)</span></h2>
     <div class="row" style="margin-bottom:12px"><button class="btn sm ghost" onclick="genDailyPlan(true)">🔄 Neu generieren</button></div>
     <div class="grid g3" id="dailyPlanBox"></div>
@@ -352,8 +398,6 @@ td{padding:8px 6px;border-top:1px solid var(--line)}
       <button class="btn sm ghost" onclick="recipeFromPhoto()">📷 Foto → Rezept</button>
     </div>
     <div id="weekPlanBox"></div>
-    <h2>✨ Generierte Rezepte</h2>
-    <div class="grid g3" id="recipeBox"></div>
     <h2>💾 Gespeicherte Rezepte</h2>
     <div class="grid g3" id="savedRecipeBox"></div>
   </section>
@@ -379,14 +423,36 @@ td{padding:8px 6px;border-top:1px solid var(--line)}
     <h1>Training</h1>
     <p class="sub">Workout-Builder mit Supersätzen, Live-Tracker, RPE/RIR, Tonnage &amp; 1RM.</p>
     <div class="mini3d" id="train3d"></div>
+    <div class="card" style="margin-bottom:18px">
+      <h2 style="margin-top:0">🎓 Übungs-Coach &amp; Bibliothek</h2>
+      <p class="sub" style="margin-bottom:12px">Frag, wie du eine Muskelgruppe trainierst (auch zu Hause ohne Geräte) oder wie eine Übung korrekt ausgeführt wird – jede Übung kommt mit animierter Bewegungs-Demo, Tipps &amp; typischen Fehlern.</p>
+      <div class="row" style="flex-wrap:nowrap">
+        <input id="exQ" placeholder='z. B. „Bizeps zu Hause ohne Hanteln" oder „Wie mache ich Kniebeugen richtig?"' style="flex:1" onkeydown="if(event.key==='Enter')askExercise()">
+        <button class="btn sm" onclick="askExercise()">➤</button>
+      </div>
+      <div class="row" id="exChips" style="margin-top:12px"></div>
+      <div id="exResult" style="margin-top:14px"></div>
+    </div>
     <div class="row" style="margin-bottom:18px">
       <button class="btn" onclick="openPlanEditor()">＋ Plan erstellen</button>
+      <button class="btn ghost" onclick="openTemplates()">📚 Vorlagen</button>
+      <button class="btn ghost" onclick="openPlateCalc()">🏋️ Plattenrechner</button>
       <button class="btn ghost" onclick="runCoach()">🤖 Overload-Coach</button>
     </div>
+    <div id="deloadBox"></div>
     <div class="grid g3" id="planBox"></div>
     <div id="liveBox" style="display:none;margin-top:20px"></div>
+    <h2>📊 Volumen-Landmarken <span style="font-weight:400;color:var(--mut);font-size:13px">harte Sätze pro Muskelgruppe / Woche (MEV–MRV, RP-Methodik)</span></h2>
+    <div class="card" id="volumeBox"></div>
     <h2>📈 Analytics</h2>
     <div class="grid g2"><div class="card" id="tonnageBox"></div><div class="card" id="ormBox"></div></div>
+    <h2>🤸 Skill-Progressionen</h2>
+    <div class="row" style="margin-bottom:12px">
+      <button class="btn sm ghost" onclick="openIsoTimer('')">⏱ Freier Isometrie-Timer</button>
+      <button class="btn sm ghost" onclick="runRadar()">🛡️ Belastungsradar (KI)</button>
+    </div>
+    <div class="grid g3" id="treeBox"></div>
+    <div class="card" id="radarBox" style="display:none;margin-top:12px"></div>
     <h2>🗂️ Historie</h2>
     <div class="card"><div id="logList"></div></div>
   </section>
@@ -403,9 +469,12 @@ td{padding:8px 6px;border-top:1px solid var(--line)}
           <div><label>Gewicht kg</label><input type="number" step="0.1" id="setGewicht"></div>
           <div><label>Größe cm</label><input type="number" id="setGroesse"></div>
           <div><label>KFA %</label><input type="number" step="0.1" id="setKfa"></div>
+          <div><label>Alter</label><input type="number" id="setAlter"></div>
+          <div><label>Geschlecht</label><select id="setGeschlecht"><option value="m">Männlich</option><option value="w">Weiblich</option></select></div>
+          <div><label>Zielgewicht kg</label><input type="number" step="0.1" id="setZielGewicht" placeholder="optional"></div>
+          <div><label>Ziel</label>
+            <select id="setZiel"><option>Muskelaufbau</option><option>Fettabbau</option><option>Kraft</option><option>Skills / Calisthenics</option><option>Erhaltung</option></select></div>
         </div>
-        <label>Ziel</label>
-        <select id="setZiel"><option>Muskelaufbau</option><option>Fettabbau</option><option>Kraft</option><option>Skills / Calisthenics</option><option>Erhaltung</option></select>
       </div>
       <div class="card">
         <h2 style="margin-top:0">🎯 Tagesziele</h2>
@@ -415,7 +484,21 @@ td{padding:8px 6px;border-top:1px solid var(--line)}
           <div><label>Carbs g</label><input type="number" id="setCarb"></div>
           <div><label>Fett g</label><input type="number" id="setFett"></div>
         </div>
+        <button class="btn sm ghost" style="margin-top:14px" onclick="suggestTargets()">🧮 Werte für mich vorschlagen</button>
+        <p class="sub" id="targetHint" style="margin:10px 0 0"></p>
       </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h2 style="margin-top:0">🌐 Sprache / Language</h2>
+      <p class="sub">Übersetzt die ganze App über Google Übersetzer. „Deutsch (Original)" schaltet zurück.</p>
+      <select id="setLang" class="notranslate" translate="no" onchange="setLang(this.value)"></select>
+      <p class="sub notranslate" translate="no" id="langHint" style="margin:10px 0 0"></p>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h2 style="margin-top:0">📸 KFA-Schätzung per Foto</h2>
+      <p class="sub">Lade ein Oberkörper-Foto hoch (frontal, gute Beleuchtung) – die KI schätzt deinen Körperfettanteil anhand von Foto, Gewicht, Größe, Alter und Geschlecht. Speichere Profil-Änderungen vorher.</p>
+      <button class="btn sm" onclick="kfaPhoto()">📷 Foto hochladen &amp; KFA schätzen</button>
+      <div id="kfaResult" style="margin-top:12px"></div>
     </div>
     <div class="card" style="margin-top:16px">
       <h2 style="margin-top:0">🔔 Push-Benachrichtigungen</h2>
@@ -425,21 +508,6 @@ td{padding:8px 6px;border-top:1px solid var(--line)}
         <button class="btn sm" style="margin-top:20px" onclick="enablePush()">🔔 Push aktivieren / aktualisieren</button>
         <span class="sub" id="pushStatus" style="margin-top:20px"></span>
       </div>
-    </div>
-    <div class="card" style="margin-top:16px">
-      <h2 style="margin-top:0">👤 Account &amp; Cloud-Sync</h2>
-      <p class="sub">Registriere dich mit E-Mail + Passwort – deine Daten werden automatisch gesichert und zwischen Handy &amp; Desktop synchronisiert.</p>
-      <div class="grid g2" style="gap:10px;margin-top:4px">
-        <div><label>E-Mail</label><input type="email" id="fbEmail" autocomplete="email"></div>
-        <div><label>Passwort</label><input type="password" id="fbPass" autocomplete="current-password"></div>
-      </div>
-      <div class="row" style="margin-top:12px">
-        <button class="btn sm" onclick="fbRegister()">Registrieren</button>
-        <button class="btn sm ghost" onclick="fbLogin()">Login</button>
-        <button class="btn sm ghost" onclick="fbLogout()">Logout</button>
-        <button class="btn sm ghost" onclick="cloudSyncNow()">🔄 Jetzt syncen</button>
-      </div>
-      <p class="sub" id="fbStatus" style="margin-top:10px">Nicht verbunden.</p>
     </div>
     <div class="card" style="margin-top:16px">
       <h2 style="margin-top:0">⌚ Health-Sync (Fitbit)</h2>
@@ -459,6 +527,10 @@ td{padding:8px 6px;border-top:1px solid var(--line)}
       <button class="btn danger" onclick="if(confirm('Wirklich ALLE Daten löschen?')){localStorage.removeItem('apexfit');location.reload()}">🗑️ Reset</button>
     </div>
     <p class="sub" style="margin-top:14px">📴 Offline-Cache: alle Daten liegen lokal auf dem Gerät (localStorage) – das Logbuch funktioniert auch ohne Netz im Keller-Gym.</p>
+    <div style="margin-top:28px;padding-top:18px;border-top:1px solid var(--line);text-align:center">
+      <p class="sub" id="syncStatus" style="margin-bottom:12px"></p>
+      <button class="btn ghost sm" onclick="fbLogout()">🚪 Logout</button>
+    </div>
   </section>
 </main>
 </div>
@@ -470,15 +542,22 @@ td{padding:8px 6px;border-top:1px solid var(--line)}
 <!-- ═══ AUTH-GATE: App ist erst nach Login nutzbar (Cloud-Sync auf allen Geräten) ═══ -->
 <div id="authGate" style="position:fixed;inset:0;z-index:500;background:var(--body-bg);display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto">
   <div class="card" style="max-width:400px;width:100%">
-    <div style="font-family:'Sora','Inter',sans-serif;font-weight:800;font-size:26px;letter-spacing:.5px;text-align:center;margin-bottom:6px">APEX <span style="background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent">FIT</span></div>
+    <div class="notranslate" translate="no" data-noi18n style="font-family:'Sora','Inter',sans-serif;font-weight:800;font-size:26px;letter-spacing:.5px;text-align:center;margin-bottom:6px">Evidence <span style="background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent">Fit</span></div>
     <p class="sub" style="text-align:center;margin-bottom:4px">Melde dich an, damit deine Daten automatisch gesichert und auf allen Geräten synchronisiert werden.</p>
     <label>E-Mail</label><input type="email" id="gateEmail" autocomplete="email" placeholder="du@mail.de">
     <label>Passwort</label><input type="password" id="gatePass" autocomplete="current-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')gateAuth('signInWithEmailAndPassword')">
+    <!-- Art. 9 DSGVO (24.10.2026): Gesundheitsdaten nur mit ausdrücklicher Einwilligung — Pflicht beim Registrieren. -->
+    <label class="gate-consent" style="display:flex;gap:8px;align-items:flex-start;text-transform:none;letter-spacing:normal;font-weight:400;font-size:12px;line-height:1.5;margin-top:10px">
+      <input type="checkbox" id="gateConsent" style="width:auto;margin-top:3px;flex:none">
+      <span>Nur fürs Registrieren: Ich willige ausdrücklich ein, dass <span class="notranslate" translate="no">Evidence Fit</span> meine Gesundheitsdaten (z. B. Schlaf, Ruhepuls, Gewicht, Ernährung) speichert und auswertet (Art. 9 Abs. 2 lit. a DSGVO). Widerruf jederzeit durch Löschen des Kontos.</span>
+    </label>
     <div class="row" style="margin-top:16px">
       <button class="btn" style="flex:1;justify-content:center" onclick="gateAuth('signInWithEmailAndPassword')">Login</button>
       <button class="btn ghost" style="flex:1;justify-content:center" onclick="gateAuth('createUserWithEmailAndPassword')">Registrieren</button>
     </div>
     <p class="sub" id="gateStatus" style="margin-top:12px;text-align:center"></p>
+    <!-- § 312k BGB: Kündigen ohne Login, von hier immer erreichbar -->
+    <p class="sub" style="margin-top:6px;text-align:center"><a href="#kuendigen" onclick="FitAccess.cancelPage();return false" style="color:inherit;text-decoration:underline">Verträge hier kündigen</a></p>
   </div>
 </div>
 
@@ -624,17 +703,30 @@ const APP_CONFIG={
 
 /* ═══════════ STATE ═══════════ */
 const DEFAULTS = {
-  profile:{name:'',gewicht:80,groesse:180,kfa:15,ziel:'Muskelaufbau'},
+  profile:{name:'',gewicht:80,groesse:180,kfa:15,alter:25,geschlecht:'m',ziel:'Muskelaufbau'},
   targets:{kalorien:2500,protein:180,kohlenhydrate:250,fett:80},
   prefs:{vorliebe:'alles',nogos:[],autoPlan:true},
   workerUrl:'',
   meals:{}, biometrics:[], supplements:[], plans:[], logs:[],
   skills:{}, skillLogs:[], dailyPlans:{}, recipes:[], tips:null, coach:null,
-  recentRecipeNames:[]
+  recentRecipeNames:[], coachChat:[], tomb:{}, coachChatClearedAt:0, lang:'de'
 };
+// Löschung merken, damit sie beim Cloud-Merge NICHT wieder auftaucht (Tombstone), + sofort syncen
+function tombstone(key){(S.tomb=S.tomb||{})[key]=Date.now();save();}
 let S; try{S = Object.assign(structuredClone(DEFAULTS), JSON.parse(localStorage.getItem('apexfit'))||{});}catch{S=structuredClone(DEFAULTS);}
-S.workerUrl=APP_CONFIG.workerUrl; // zentral vorgegeben
-const save = ()=>localStorage.setItem('apexfit',JSON.stringify(S));
+// Migration älterer Stände (Felder, die es früher nicht gab) – auch nach Cloud-Pull nötig
+function migrateState(){
+  S.workerUrl=APP_CONFIG.workerUrl; // zentral vorgegeben
+  S.profile.alter=S.profile.alter??25;S.profile.geschlecht=S.profile.geschlecht||'m';S.coachChat=S.coachChat||[];
+  S.alcohol=S.alcohol||{};S.measurements=S.measurements||[];S.progressPics=S.progressPics||[];S.cycle=S.cycle||{starts:[]};
+  S.tomb=S.tomb||{};S.coachChatClearedAt=S.coachChatClearedAt||0;S.lang=S.lang||'de';
+}
+migrateState();
+// persist = roh in localStorage schreiben (mit Fehler-Warnung statt stillem Datenverlust)
+const persist = ()=>{try{localStorage.setItem('apexfit',JSON.stringify(S));}
+  catch(e){toast('⚠️ Lokales Speichern fehlgeschlagen ('+e.name+') – bitte Daten exportieren!','err');}};
+// save = jede Datenänderung bekommt SOFORT einen Zeitstempel (schützt vor Cloud-Überschreiben) + triggert Sync
+const save = ()=>{S._updatedAt=Date.now();persist();window._onSave?.();};
 const $ = s=>document.querySelector(s);
 const uid = ()=>Math.random().toString(36).slice(2,10);
 const todayStr = ()=>new Date().toISOString().slice(0,10);
@@ -658,17 +750,26 @@ function showTab(id){
 }
 
 /* ═══════════ KI-CALL ═══════════ */
+/* Login-Token mitsenden (24.10.2026): der Worker prüft damit Abo bzw.
+   verknüpftes Evidence Pro. Ohne Login bleibt der Header einfach weg. */
+async function fitAuthHeaders(){
+  const h={'Content-Type':'application/json'};
+  try{ const u=window.firebase&&firebase.auth().currentUser; if(u) h.Authorization='Bearer '+await u.getIdToken(); }catch(e){}
+  return h;
+}
 async function aiCall(task,payload={},msg='KI denkt nach…'){
   const url=(S.workerUrl||'').trim().replace(/\/$/,'');
   if(!url){toast('Bitte zuerst die Worker-URL im Setup eintragen','err');showTab('einstellungen');throw new Error('no worker');}
   loading(true,msg);
   try{
-    const r=await fetch(url+'/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},
+    const r=await fetch(url+'/api/ai',{method:'POST',headers:await fitAuthHeaders(),
       body:JSON.stringify({task,...payload})});
     const d=await r.json();
+    // KI ist Teil des Abos (oder über Evidence Pro) — statt Fehler das Abo-Fenster.
+    if(r.status===402){ if(window.FitAccess) FitAccess.paywall(); const e=new Error('subscription_required'); e.quiet=true; throw e; }
     if(!d.ok) throw new Error(d.error||'KI-Fehler');
     return d.result;
-  }catch(e){toast('KI-Fehler: '+e.message,'err');throw e;}
+  }catch(e){if(!e.quiet)toast('KI-Fehler: '+e.message,'err');throw e;}
   finally{loading(false);}
 }
 async function fileToB64(file,max=1100){
@@ -759,19 +860,63 @@ function pendingTotals(){
 }
 function renderPendingMeal(){
   const P=window._pendingMeal,t=pendingTotals();
-  modal(`<div class="mhead"><h3>Erkannt (${esc(P.label)})</h3><button class="x" onclick="closeModal()">✕</button></div>
-  <p class="sub" style="margin-bottom:10px">Mengen anpassbar – Nährwerte skalieren automatisch mit.</p>
+  modal(`<div class="mhead"><h3>${P.editId?'✎ Mahlzeit bearbeiten':'Erkannt ('+esc(P.label)+')'}</h3><button class="x" onclick="closeModal()">✕</button></div>
+  <p class="sub" style="margin-bottom:10px">Menge ändern skaliert die Nährwerte automatisch · ✎ öffnet alle Werte zum manuellen Bearbeiten.</p>
   ${P.items.map((i,idx)=>`<div class="item"><div class="t" style="flex:1">
     <b>${esc(i.name)} <span class="badge ${esc(i.quelle||'geschaetzt')}">${esc(i.quelle||'geschätzt')}</span></b>
     <span>${fmt(i.kalorien)} kcal · P ${fmt(i.protein_g,1)} · C ${fmt(i.kohlenhydrate_g,1)} · F ${fmt(i.fett_g,1)}</span></div>
     <div class="row" style="flex-wrap:nowrap;gap:6px">
       <input type="number" min="0" value="${Math.round(+i.menge_g||0)}" style="width:74px;padding:8px;text-align:center" onchange="scalePendingItem(${idx},this.value)">
       <span class="sub">g</span>
+      <button class="btn sm ghost" title="Werte aus Open Food Facts (verifiziert)" onclick="offSearch(${idx})">🔎</button>
+      <button class="btn sm ghost" onclick="editPendingItem(${idx})">✎</button>
       <button class="btn sm danger" onclick="window._pendingMeal.items.splice(${idx},1);renderPendingMeal()">✕</button>
     </div></div>`).join('')||'<p class="sub">Nichts erkannt.</p>'}
+  <div class="row" style="margin-top:10px">
+    <button class="btn sm ghost" onclick="addPendingItem()">＋ Position hinzufügen</button>
+  </div>
+  <label>🤖 Anmerkung an die KI</label>
+  <textarea id="pmNote" rows="2" placeholder='z. B. "Pommes aus der Heißluftfritteuse", "Dip ist Ketchup + Senf", "dazu noch 200 ml Cola"'></textarea>
+  <button class="btn sm ghost" style="margin-top:8px" onclick="refinePendingMeal()">🤖 Mit KI anpassen</button>
   <div class="row" style="margin-top:16px;justify-content:space-between">
     <b>${fmt(t.kalorien)} kcal · P ${fmt(t.protein_g,1)}g gesamt</b>
-    <button class="btn" ${P.items.length?'':'disabled'} onclick="trackPendingMeal()">✓ Tracken</button></div>`);
+    <button class="btn" ${P.items.length?'':'disabled'} onclick="trackPendingMeal()">${P.editId?'💾 Änderungen speichern':'✓ Tracken'}</button></div>`);
+}
+function editPendingItem(idx){
+  const i=window._pendingMeal.items[idx];
+  modal(`<div class="mhead"><h3>✎ ${esc(i.name)}</h3><button class="x" onclick="renderPendingMeal()">✕</button></div>
+  <p class="sub">Alle Werte manuell anpassbar – die Menge skaliert hier NICHT automatisch.</p>
+  <label>Name</label><input id="epName" value="${esc(i.name)}">
+  <div class="grid g3" style="gap:10px">
+    <div><label>Menge g</label><input type="number" id="epMenge" value="${+i.menge_g||0}"></div>
+    <div><label>kcal</label><input type="number" id="epKcal" value="${Math.round(+i.kalorien||0)}"></div>
+    <div><label>Protein g</label><input type="number" step="0.1" id="epProt" value="${(+i.protein_g||0).toFixed(1)}"></div>
+    <div><label>Carbs g</label><input type="number" step="0.1" id="epCarb" value="${(+i.kohlenhydrate_g||0).toFixed(1)}"></div>
+    <div><label>Fett g</label><input type="number" step="0.1" id="epFett" value="${(+i.fett_g||0).toFixed(1)}"></div>
+    <div><label>Zucker g</label><input type="number" step="0.1" id="epZucker" value="${(+i.zucker_g||0).toFixed(1)}"></div>
+  </div>
+  <div class="row" style="margin-top:16px">
+    <button class="btn" onclick="savePendingItem(${idx})">✓ Übernehmen</button>
+    <button class="btn ghost" onclick="renderPendingMeal()">Abbrechen</button></div>`);
+}
+function savePendingItem(idx){
+  const i=window._pendingMeal.items[idx];
+  i.name=$('#epName').value||i.name;i.menge_g=+$('#epMenge').value||0;
+  i.kalorien=+$('#epKcal').value||0;i.protein_g=+$('#epProt').value||0;
+  i.kohlenhydrate_g=+$('#epCarb').value||0;i.fett_g=+$('#epFett').value||0;i.zucker_g=+$('#epZucker').value||0;
+  i.quelle='crowd';renderPendingMeal();
+}
+function addPendingItem(){
+  window._pendingMeal.items.push({name:'Neuer Eintrag',menge_g:100,kalorien:0,protein_g:0,kohlenhydrate_g:0,fett_g:0,quelle:'crowd',mikros:{},aminos:{}});
+  editPendingItem(window._pendingMeal.items.length-1);
+}
+async function refinePendingMeal(){
+  const note=$('#pmNote')?.value.trim();
+  if(!note)return toast('Erst eine Anmerkung eintippen','err');
+  const res=await aiCall('meal_refine',{context:{items:window._pendingMeal.items,anweisung:note}},'Mahlzeit wird angepasst…');
+  if(res.items?.length)window._pendingMeal.items=res.items;
+  if(res.hinweis)toast('🤖 '+res.hinweis);
+  renderPendingMeal();
 }
 function scalePendingItem(idx,val){
   const i=window._pendingMeal.items[idx];
@@ -782,15 +927,26 @@ function scalePendingItem(idx,val){
   i.menge_g=neu;renderPendingMeal();
 }
 function trackPendingMeal(){
-  addMeal({items:window._pendingMeal.items,gesamt:pendingTotals()},window._pendingMeal.label);
+  const P=window._pendingMeal;
+  if(P.editId){ // bestehende Mahlzeit wurde bearbeitet → ersetzen statt neu anlegen
+    const m=(S.meals[P.editDate]||[]).find(x=>x.id===P.editId);
+    if(m){m.items=P.items;m.gesamt=pendingTotals();save();renderNutrition();renderDash();toast('Mahlzeit aktualisiert ✓');}
+    closeModal();return;
+  }
+  addMeal({items:P.items,gesamt:pendingTotals()},P.label);
   closeModal();
+}
+function editMeal(id){
+  const d=nutriDate(),m=(S.meals[d]||[]).find(x=>x.id===id);if(!m)return;
+  window._pendingMeal={items:structuredClone(m.items||[]),label:m.label,editId:id,editDate:d};
+  renderPendingMeal();
 }
 function addMeal(res,label){
   const d=nutriDate();(S.meals[d]=S.meals[d]||[]).push({id:uid(),zeit:new Date().toTimeString().slice(0,5),label,
     items:res.items||[],gesamt:res.gesamt||{}});
   save();renderNutrition();renderDash();toast('Mahlzeit getrackt ✓');
 }
-function delMeal(id){const d=nutriDate();S.meals[d]=(S.meals[d]||[]).filter(m=>m.id!==id);save();renderNutrition();renderDash();}
+function delMeal(id){const d=nutriDate();S.meals[d]=(S.meals[d]||[]).filter(m=>m.id!==id);tombstone('meal:'+id);renderNutrition();renderDash();}
 function dayTotals(d){
   const t={kalorien:0,protein_g:0,kohlenhydrate_g:0,fett_g:0};
   (S.meals[d]||[]).forEach(m=>{t.kalorien+=+m.gesamt?.kalorien||0;t.protein_g+=+m.gesamt?.protein_g||0;
@@ -811,7 +967,9 @@ function renderNutrition(){
   $('#mealList').innerHTML=meals.length?meals.map(m=>`<div class="item"><div class="t">
       <b>${m.zeit} · ${esc(m.label)}</b>
       <span>${m.items.map(i=>esc(i.name)+' ('+fmt(i.menge_g)+'g)').join(', ')} — ${fmt(m.gesamt?.kalorien)} kcal · P ${fmt(m.gesamt?.protein_g,1)}g</span></div>
-      <button class="btn sm danger" onclick="delMeal('${m.id}')">✕</button></div>`).join('')
+      <div class="row" style="flex-wrap:nowrap;gap:6px">
+        <button class="btn sm ghost" onclick="editMeal('${m.id}')">✎</button>
+        <button class="btn sm danger" onclick="delMeal('${m.id}')">✕</button></div></div>`).join('')
     :'<p class="sub" style="margin:0">Noch keine Mahlzeiten – nutze den KI-Scanner oben.</p>';
   // Mikro-Matrix
   const micros={},aminos={};
@@ -831,8 +989,21 @@ function addNogo(){const v=$('#nogoInput').value.trim();if(!v)return;
 function delNogo(i){S.prefs.nogos.splice(i,1);save();renderNogos();}
 function renderNogos(){$('#nogoChips').innerHTML=S.prefs.nogos.map((n,i)=>
   `<span class="chip">🚫 ${esc(n)}<button onclick="delNogo(${i})">✕</button></span>`).join('')||'<span class="sub">Keine No-Gos definiert.</span>';}
+// Ess-Verhalten: was der Nutzer in den letzten 14 Tagen tatsächlich getrackt hat (für personalisierte Rezepte & Coach)
+function eatingBehavior(){
+  const count={};let tage=0;
+  for(let i=0;i<14;i++){
+    const d=new Date(Date.now()-i*864e5).toISOString().slice(0,10);
+    const ms=S.meals[d]||[];if(ms.length)tage++;
+    ms.forEach(m=>(m.items||[]).forEach(it=>{const n=(it.name||'').trim();if(n)count[n]=(count[n]||0)+1;}));
+  }
+  return {getrackte_tage_von_14:tage,
+    haeufige_lebensmittel:Object.entries(count).sort((a,b)=>b[1]-a[1]).slice(0,15).map(([n,c])=>`${n} (${c}×)`),
+    makro_verlauf_7_tage:last7Summary()};
+}
 function prefsContext(){S.prefs.vorliebe=$('#prefVorliebe')?.value||S.prefs.vorliebe;save();
   return {vorlieben:S.prefs.vorliebe,no_gos:S.prefs.nogos,ziel_makros:S.targets,profil:S.profile,
+    ess_verhalten:eatingBehavior(),
     nicht_wiederholen:(S.recentRecipeNames||[]).slice(-30),zufall:uid()+Date.now()};}
 // prüft Rezeptname + alle Zutaten gegen die No-Go-Liste (Teilstring, case-insensitive)
 function nogoHits(r){
@@ -854,24 +1025,34 @@ async function genRecipes(){
   }
   window._genRecipes=rec;rememberNames(rec.map(r=>r.name));
   renderRecipes();toast(rec.length+' neue Rezepte ✓');
+  $('#recipeBoxTitle')?.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function recipePrice(r,f=1){
+  const sum=+r.gesamt_preis_eur||( (r.zutaten||[]).reduce((a,z)=>a+(+z.preis_eur||0),0) );
+  return sum>0?sum*f:0;
 }
 function recipeCard(r,idx,saved){
   const port=r._port||r.portionen||1, f=port/(r.portionen||1);
+  const preis=recipePrice(r,f);
   return `<div class="card">
     <b style="font-size:15.5px">${esc(r.name)}</b>
-    <p class="sub" style="margin:6px 0 10px">${esc(r.beschreibung||'')} · ⏱ ${fmt(r.dauer_min)} min</p>
+    <p class="sub" style="margin:6px 0 10px">${esc(r.beschreibung||'')} · ⏱ ${fmt(r.dauer_min)} min${preis?` · 💶 ca. ${fmt(preis,2)} €`:''}</p>
     <div class="row" style="margin-bottom:8px"><label style="margin:0">Portionen</label>
       <input type="number" min="1" value="${port}" style="width:70px;padding:6px"
         onchange="scaleRecipe(${idx},${saved},this.value)"></div>
-    ${(r.zutaten||[]).map(z=>`<div style="font-size:13px;padding:3px 0;border-bottom:1px solid var(--line)">
-      ${fmt((+z.menge||0)*f,(+z.menge||0)*f<10?1:0)} ${esc(z.einheit||'')} ${esc(z.name)}</div>`).join('')}
-    <details style="margin-top:10px"><summary style="cursor:pointer;font-size:13px;color:var(--acc)">Zubereitung</summary>
-      <ol style="margin:8px 0 0 18px;font-size:13px;color:var(--mut)">${(r.zubereitung||[]).map(s=>`<li style="margin:4px 0">${esc(s)}</li>`).join('')}</ol></details>
+    ${(r.zutaten||[]).map(z=>`<div style="font-size:13px;padding:3px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px">
+      <span>${fmt((+z.menge||0)*f,(+z.menge||0)*f<10?1:0)} ${esc(z.einheit||'')} ${esc(z.name)}${z.marke?`<br><span class="sub" style="font-size:11px">🏷️ ${esc(z.marke)}</span>`:''}</span>
+      ${+z.preis_eur?`<b style="white-space:nowrap;color:var(--acc2)">${fmt(z.preis_eur*f,2)} €</b>`:''}</div>`).join('')}
+    ${preis?`<div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0;font-weight:800"><span>Gesamt</span><span style="color:var(--acc2)">≈ ${fmt(preis,2)} €</span></div>`:''}
+    <details style="margin-top:10px"><summary style="cursor:pointer;font-size:13px;color:var(--acc)">👨‍🍳 Zubereitung${(r.tipps||[]).length?' & Tipps':''}</summary>
+      <ol style="margin:8px 0 0 18px;font-size:13px;color:var(--mut)">${(r.zubereitung||[]).map(s=>`<li style="margin:4px 0">${esc(s)}</li>`).join('')}</ol>
+      ${(r.tipps||[]).length?`<div style="margin-top:10px;font-size:12.5px"><b style="color:var(--acc)">💡 Profi-Tipps</b>
+        ${r.tipps.map(t=>`<p style="margin:5px 0;color:var(--mut)">• ${esc(t)}</p>`).join('')}</div>`:''}</details>
     <p style="font-size:12.5px;color:var(--acc2);margin-top:10px;font-weight:700">
       ${fmt((r.makros?.kalorien||0)*f)} kcal · P ${fmt((r.makros?.protein_g||0)*f)}g · C ${fmt((r.makros?.kohlenhydrate_g||0)*f)}g · F ${fmt((r.makros?.fett_g||0)*f)}g</p>
     <div class="row" style="margin-top:10px">
-      ${saved?`<button class="btn sm danger" onclick="S.recipes.splice(${idx},1);save();renderRecipes()">Löschen</button>`
-             :`<button class="btn sm ghost" onclick="S.recipes.push(window._genRecipes[${idx}]);save();renderRecipes();toast('Gespeichert ✓')">💾 Speichern</button>`}
+      ${saved?`<button class="btn sm danger" onclick="delRecipe(${idx})">Löschen</button>`
+             :`<button class="btn sm ghost" onclick="saveRecipe(${idx})">💾 Speichern</button>`}
       <button class="btn sm" onclick="trackRecipe(${idx},${saved})">＋ Tracken</button></div></div>`;
 }
 function scaleRecipe(idx,saved,val){const r=(saved?S.recipes:window._genRecipes||[])[idx];if(r){r._port=Math.max(1,+val||1);if(saved)save();renderRecipes();}}
@@ -898,12 +1079,14 @@ async function genDailyPlan(force){
 }
 function planMealCard(title,r){
   if(!r)return '';
+  const preis=recipePrice(r);
   return `<div class="card"><span class="badge verifiziert" style="margin-bottom:8px;display:inline-block">${title}</span>
     <b style="display:block;font-size:15px">${esc(r.name)}</b>
     <p class="sub" style="margin:6px 0">${(r.zutaten||[]).map(z=>fmt(z.menge)+' '+esc(z.einheit||'')+' '+esc(z.name)).join(' · ')}</p>
-    <p style="font-size:12.5px;color:var(--acc2);font-weight:700">${fmt(r.makros?.kalorien)} kcal · P ${fmt(r.makros?.protein_g)}g</p>
-    <details style="margin-top:8px"><summary style="cursor:pointer;font-size:12.5px;color:var(--acc)">Zubereitung</summary>
-      <ol style="margin:6px 0 0 18px;font-size:12.5px;color:var(--mut)">${(r.zubereitung||[]).map(s=>`<li>${esc(s)}</li>`).join('')}</ol></details></div>`;
+    <p style="font-size:12.5px;color:var(--acc2);font-weight:700">${fmt(r.makros?.kalorien)} kcal · P ${fmt(r.makros?.protein_g)}g${preis?` · 💶 ≈ ${fmt(preis,2)} €`:''}</p>
+    <details style="margin-top:8px"><summary style="cursor:pointer;font-size:12.5px;color:var(--acc)">Zubereitung${(r.tipps||[]).length?' & Tipps':''}</summary>
+      <ol style="margin:6px 0 0 18px;font-size:12.5px;color:var(--mut)">${(r.zubereitung||[]).map(s=>`<li>${esc(s)}</li>`).join('')}</ol>
+      ${(r.tipps||[]).length?r.tipps.map(t=>`<p style="margin:5px 0;font-size:12px;color:var(--mut)">💡 ${esc(t)}</p>`).join(''):''}</details></div>`;
 }
 function renderRecipes(){
   $('#prefVorliebe').value=S.prefs.vorliebe;$('#autoPlanChk').checked=!!S.prefs.autoPlan;renderNogos();
@@ -930,7 +1113,9 @@ function renderTips(){
   const pc={hoch:'var(--err)',mittel:'var(--warn)',niedrig:'var(--acc2)'};
   $('#tipsBox').innerHTML=(S.tips||[]).map(t=>`<div class="card" style="border-left:4px solid ${pc[t.prioritaet]||'var(--acc)'}">
     <div class="row" style="justify-content:space-between"><b>${esc(t.titel)}</b><span class="badge crowd">${esc(t.kategorie||'')}</span></div>
-    <p class="sub" style="margin:8px 0 0">${esc(t.text)}</p></div>`).join('')
+    <p class="sub" style="margin:8px 0 0">${esc(t.text)}</p>
+    ${t.warum?`<p style="font-size:12.5px;margin:10px 0 0"><b style="color:var(--acc)">🧠 Warum das wichtig ist:</b><br><span style="color:var(--mut)">${esc(t.warum)}</span></p>`:''}
+    ${t.umsetzung?`<p style="font-size:12.5px;margin:10px 0 0"><b style="color:var(--acc2)">✅ So setzt du es um:</b><br><span style="color:var(--mut)">${esc(t.umsetzung)}</span></p>`:''}</div>`).join('')
     ||'<p class="sub">Tracke ein paar Tage und generiere dann Tipps.</p>';
 }
 
@@ -970,7 +1155,7 @@ function suppPhase(s){
 }
 function toggleSupp(id){const s=S.supplements.find(x=>x.id===id);if(!s)return;
   const d=todayStr();s.genommen[d]=!s.genommen[d];save();renderSupps();}
-function delSupp(id){S.supplements=S.supplements.filter(x=>x.id!==id);save();renderSupps();}
+function delSupp(id){S.supplements=S.supplements.filter(x=>x.id!==id);tombstone('supp:'+id);renderSupps();}
 function renderSupps(){
   const d=todayStr();
   $('#suppList').innerHTML=S.supplements.length?S.supplements.map(s=>{
@@ -1043,7 +1228,12 @@ function savePlan(){
   if(p.id){const i=S.plans.findIndex(x=>x.id===p.id);S.plans[i]=p;}else{p.id=uid();S.plans.push(p);}
   save();closeModal();renderTraining();toast('Plan gespeichert ✓');
 }
-function delPlan(id){S.plans=S.plans.filter(p=>p.id!==id);save();renderTraining();}
+function delPlan(id){S.plans=S.plans.filter(p=>p.id!==id);tombstone('plan:'+id);renderTraining();}
+function delLog(id){S.logs=S.logs.filter(x=>x.id!==id);tombstone('log:'+id);renderTraining();renderDash();}
+function delRecipe(idx){const r=S.recipes[idx];if(!r)return;S.recipes.splice(idx,1);if(r.name)tombstone('recipe:'+r.name);else save();renderRecipes();}
+function saveRecipe(idx){const r=(window._genRecipes||[])[idx];if(!r)return;
+  if(r.name&&S.tomb)delete S.tomb['recipe:'+r.name]; // evtl. alten Tombstone entfernen, damit die Neuanlage bleibt
+  S.recipes.push(r);save();renderRecipes();toast('Gespeichert ✓');}
 
 /* Live Session */
 let live=null,restInt=null,sessInt=null;
@@ -1069,7 +1259,8 @@ function renderLive(){
       <b id="sessTime" style="font-variant-numeric:tabular-nums;font-size:20px">00:00:00</b></div>
     <div class="resttimer" id="restBar"><span>⏸ Pause</span><b id="restTime" style="font-size:22px"></b><button class="btn sm ghost" onclick="stopRest()">Skip</button></div>
     ${Object.entries(byEx).map(([name,rows])=>`<div style="margin-bottom:16px">
-      <b>${rows[0][0].gruppe?`<span class="ss-tag">SUPERSATZ ${esc(rows[0][0].gruppe)} · </span>`:''}${esc(name)}${rows[0][0].bw?' <span class="sub">＋KG '+fmt(S.profile.gewicht,1)+'kg</span>':''}</b>
+      <b>${rows[0][0].gruppe?`<span class="ss-tag">SUPERSATZ ${esc(rows[0][0].gruppe)} · </span>`:''}${esc(name)}${rows[0][0].bw?' <span class="sub">＋KG '+fmt(S.profile.gewicht,1)+'kg</span>':''}
+        <button class="btn sm ghost" style="padding:3px 8px;font-size:11px" data-n="${esc(name)}" onclick="formCheck(this.dataset.n)" title="Ausführung ansehen">🎥</button></b>
       <div class="setrow" style="color:var(--mut);font-size:11px"><span>#</span><span>${rows[0][0].typ==='hold'?'Sek.':'Wdh'}</span><span>Gewicht kg</span><span>RPE</span><span></span></div>
       ${rows.map(([s,i])=>`<div class="setrow">
         <span style="color:var(--mut)">${s.satz}</span>
@@ -1132,7 +1323,7 @@ function renderTraining(){
   $('#logList').innerHTML=S.logs.slice(0,12).map(l=>`<div class="item"><div class="t">
     <b>${l.date} · ${esc(l.planName)}</b>
     <span>${l.sets.length} Sätze · ${hhmmss(l.dauer_s)} · ${fmt(l.tonnage)} kg Tonnage · Ø RPE ${fmt(avg(l.sets.map(s=>+s.rpe).filter(Boolean)),1)}</span></div>
-    <button class="btn sm danger" onclick="S.logs=S.logs.filter(x=>x.id!=='${l.id}');save();renderTraining()">✕</button></div>`).join('')
+    <button class="btn sm danger" onclick="delLog('${l.id}')">✕</button></div>`).join('')
     ||'<p class="sub" style="margin:0">Noch keine Workouts geloggt.</p>';
 }
 const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
@@ -1140,13 +1331,99 @@ async function runCoach(){
   const logs=S.logs.slice(0,10).map(l=>({datum:l.date,plan:l.planName,tonnage:l.tonnage,
     saetze:l.sets.map(s=>({uebung:s.uebung,gewicht:totalWeight(s),wdh:s.reps,sekunden:s.sekunden,rpe:s.rpe}))}));
   const res=await aiCall('coach',{context:{logs,ernaehrung_letzte_tage:last7Summary(),tagesziele:S.targets,
-    profil:S.profile,ziel:S.profile.ziel}},'Coach analysiert deine Daten…');
+    profil:S.profile,ziel:S.profile.ziel,supplemente:supplementSummary()}},'Coach analysiert deine Daten…');
   S.coach=res;save();showTab('dashboard');
   $('#coachBox').style.display='block';
   $('#coachBox').innerHTML=`<h2 style="margin-top:0">🤖 Progressive-Overload-Coach</h2>
     ${(res.empfehlungen||[]).map(e=>`<div class="item"><div class="t"><b>${esc(e.uebung)}</b>
       <span style="color:var(--acc2);font-weight:600">${esc(e.vorschlag)}</span><span>${esc(e.begruendung)}</span></div></div>`).join('')}
     <p class="sub" style="margin-top:10px">${esc(res.gesamteinschaetzung||'')}</p>`;
+}
+
+/* ═══════════ KI-COACH CHAT (persistent, mit Gedächtnis über Cloud-Sync) ═══════════ */
+const COACH_PRESETS=[
+  '📊 Analysiere meine Woche (Training & Ernährung)',
+  '🍽️ Was soll ich heute noch essen, um meine Makros zu treffen?',
+  '🏋️ Wie steigere ich mich bei meiner schwächsten Übung?',
+  '🍳 Rezeptideen basierend auf dem, was ich gern esse',
+  '💊 Welche Supplements passen zu meinem Ziel?',
+  '😴 Wie verbessere ich Schlaf & Regeneration?'
+];
+// Kompakte Übersicht der angelegten Supplements (Name, Dosis, Timing, Zyklusphase, heute genommen)
+function supplementSummary(){
+  const d=todayStr();
+  return (S.supplements||[]).map(s=>{
+    const ph=suppPhase(s);
+    const zeit=s.zeitpunkt==='uhrzeit'?('um '+s.uhrzeit):s.zeitpunkt==='pre'?'Pre-Workout':'Post-Workout';
+    const zyklus=(s.zyklus&&(s.zyklus.on||s.zyklus.lade))?(' · Zyklus: '+ph.txt):'';
+    return {name:s.name,dosis:+fmt(ph.dosis,1).replace(',','.')||s.dosis,einheit:s.einheit,
+      timing:zeit,phase:ph.txt,aktiv:ph.on,heute_genommen:!!s.genommen?.[d],
+      beschreibung:`${s.name}: ${fmt(ph.dosis,1)} ${s.einheit} ${zeit}${zyklus}${ph.on?'':' (aktuell in Pause)'}${s.genommen?.[d]?' – heute schon genommen':''}`};
+  });
+}
+function coachChatContext(){
+  return {profil:S.profile,ziele:S.targets,ziel:S.profile.ziel,ess_verhalten:eatingBehavior(),
+    supplemente:supplementSummary(),
+    letzte_trainings:S.logs.slice(0,5).map(l=>({datum:l.date,plan:l.planName,tonnage:l.tonnage,
+      saetze:l.sets.map(s=>({uebung:s.uebung,gewicht:totalWeight(s),wdh:s.reps,rpe:s.rpe}))})),
+    verlauf:(S.coachChat||[]).slice(-14).map(m=>({rolle:m.role==='user'?'nutzer':'coach',text:m.txt}))};
+}
+const coachFmt=s=>esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>');
+function openCoachChat(){
+  modal(`<div class="mhead"><h3>🤖 Dein KI-Coach</h3><button class="x" onclick="closeModal()">✕</button></div>
+  <div id="ccLog" style="max-height:46vh;overflow-y:auto;padding:4px 2px;margin-bottom:10px"></div>
+  <div class="row" id="ccPresets" style="margin-bottom:10px">${COACH_PRESETS.map((p,i)=>
+    `<button class="chip" style="cursor:pointer;font-size:11.5px" onclick="sendCoachMsg(COACH_PRESETS[${i}].replace(/^\\S+\\s/,''))">${p}</button>`).join('')}</div>
+  <div class="row" style="flex-wrap:nowrap">
+    <input id="ccInput" placeholder="Frag deinen Coach…" style="flex:1" onkeydown="if(event.key==='Enter')sendCoachMsg()">
+    <button class="btn sm ghost" id="ccMic" onclick="toggleCoachRec()" title="Sprachnachricht">🎤</button>
+    <button class="btn sm" onclick="sendCoachMsg()">➤</button>
+  </div>
+  <div class="row" style="margin-top:8px;justify-content:flex-end">
+    <button class="btn sm ghost" onclick="if(confirm('Gesamten Chat-Verlauf löschen?')){S.coachChatClearedAt=Date.now();S.coachChat=[];save();renderCoachLog();}">🗑️ Verlauf löschen</button>
+  </div>`);
+  renderCoachLog();
+}
+function renderCoachLog(){
+  const el=$('#ccLog');if(!el)return;
+  el.innerHTML=(S.coachChat||[]).length?(S.coachChat||[]).map(m=>m.role==='user'
+    ?`<div style="display:flex;justify-content:flex-end;margin:6px 0"><div style="background:var(--grad);color:var(--btn-txt);border-radius:15px 15px 4px 15px;padding:9px 13px;max-width:82%;font-size:13.5px">${coachFmt(m.txt)}</div></div>`
+    :`<div style="display:flex;margin:6px 0"><div style="background:var(--field);border:1px solid var(--line);border-radius:15px 15px 15px 4px;padding:9px 13px;max-width:88%;font-size:13.5px">🤖 ${coachFmt(m.txt)}</div></div>`).join('')
+    :`<p class="sub" style="text-align:center;margin:12px 0">Dein Coach kennt dein Profil, dein Training und dein Essverhalten – und merkt sich eure Gespräche dauerhaft.<br>Stell eine Frage oder nutze die Schnellfragen unten.</p>`;
+  el.scrollTop=el.scrollHeight;
+}
+async function sendCoachMsg(preset){
+  const inp=$('#ccInput');
+  const txt=(preset||inp?.value||'').trim();if(!txt)return;
+  if(inp)inp.value='';
+  S.coachChat.push({role:'user',txt,ts:Date.now()});save();renderCoachLog();
+  try{
+    const res=await aiCall('coach_chat',{text:txt,context:coachChatContext()},'Coach denkt nach…');
+    S.coachChat.push({role:'coach',txt:res.antwort||'…',ts:Date.now()});save();renderCoachLog();
+  }catch{S.coachChat.pop();save();renderCoachLog();}
+}
+let ccRec=null,ccChunks=[];
+async function toggleCoachRec(){
+  const btn=$('#ccMic');
+  if(ccRec&&ccRec.state==='recording'){ccRec.stop();return;}
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    ccChunks=[];ccRec=new MediaRecorder(stream);
+    ccRec.ondataavailable=e=>ccChunks.push(e.data);
+    ccRec.onstop=async()=>{
+      stream.getTracks().forEach(t=>t.stop());
+      if(btn){btn.textContent='🎤';btn.classList.remove('danger');}
+      const blob=new Blob(ccChunks,{type:ccRec.mimeType||'audio/webm'});
+      const b64=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result.split(',')[1]);fr.readAsDataURL(blob);});
+      try{
+        const res=await aiCall('coach_chat',{audioBase64:b64,audioMimeType:blob.type,context:coachChatContext()},'Sprachnachricht wird verarbeitet…');
+        S.coachChat.push({role:'user',txt:res.transkript||'🎤 Sprachnachricht',ts:Date.now()});
+        S.coachChat.push({role:'coach',txt:res.antwort||'…',ts:Date.now()});
+        save();renderCoachLog();
+      }catch{}
+    };
+    ccRec.start();if(btn){btn.textContent='■';btn.classList.add('danger');}
+  }catch{toast('Mikrofon-Zugriff verweigert','err');}
 }
 
 /* ═══════════ SKILLS ═══════════ */
@@ -1252,15 +1529,47 @@ function renderDash(){
 function renderSettings(){
   $('#setName').value=S.profile.name;$('#setGewicht').value=S.profile.gewicht;$('#setGroesse').value=S.profile.groesse;
   $('#setKfa').value=S.profile.kfa;$('#setZiel').value=S.profile.ziel;
+  $('#setAlter').value=S.profile.alter;$('#setGeschlecht').value=S.profile.geschlecht||'m';
   $('#setKcal').value=S.targets.kalorien;$('#setProt').value=S.targets.protein;
   $('#setCarb').value=S.targets.kohlenhydrate;$('#setFett').value=S.targets.fett;
 }
 function saveSettings(){
   S.profile={name:$('#setName').value,gewicht:+$('#setGewicht').value||80,groesse:+$('#setGroesse').value||180,
-    kfa:+$('#setKfa').value||15,ziel:$('#setZiel').value};
+    kfa:+$('#setKfa').value||15,alter:+$('#setAlter').value||25,geschlecht:$('#setGeschlecht').value||'m',ziel:$('#setZiel').value};
   S.targets={kalorien:+$('#setKcal').value||2500,protein:+$('#setProt').value||180,
     kohlenhydrate:+$('#setCarb').value||250,fett:+$('#setFett').value||80};
   save();renderDash();toast('Einstellungen gespeichert ✓');
+}
+/* Wissenschaftlich fundierte Zielwert-Vorschläge (Mifflin-St Jeor + zielabhängige Anpassung) */
+function suggestTargets(){
+  const g=+$('#setGewicht').value||S.profile.gewicht, h=+$('#setGroesse').value||S.profile.groesse,
+    a=+$('#setAlter').value||S.profile.alter||25, sex=$('#setGeschlecht').value||'m', ziel=$('#setZiel').value;
+  const bmr=Math.round(10*g+6.25*h-5*a+(sex==='w'?-161:5));
+  const tdee=Math.round(bmr*1.5); // moderat aktiv inkl. Training
+  const adj={'Muskelaufbau':300,'Fettabbau':-500,'Kraft':250,'Skills / Calisthenics':100,'Erhaltung':0}[ziel]??0;
+  const kcal=Math.round((tdee+adj)/10)*10;
+  const prot=Math.round(g*(ziel==='Fettabbau'?2.4:2)); // g/kg: im Defizit mehr Protein (Muskelschutz)
+  const fett=Math.round(g*(ziel==='Fettabbau'?0.8:1)); // min. 0.8 g/kg für Hormonhaushalt
+  const carb=Math.max(50,Math.round((kcal-prot*4-fett*9)/4));
+  $('#setKcal').value=kcal;$('#setProt').value=prot;$('#setCarb').value=carb;$('#setFett').value=fett;
+  $('#targetHint').innerHTML=`Für <b>${fmt(g,1)} kg · ${h} cm · ${a} J. · ${ziel}</b>: Grundumsatz ≈ <b>${fmt(bmr)} kcal</b>, `+
+    `Gesamtumsatz ≈ <b>${fmt(tdee)} kcal</b> (moderat aktiv), ${adj>0?'Überschuss +'+adj:adj<0?'Defizit '+adj:'Erhaltung'} → <b>${fmt(kcal)} kcal</b>. `+
+    `Protein <b>${prot} g</b> (${ziel==='Fettabbau'?'2,4':'2,0'} g/kg – ${ziel==='Fettabbau'?'schützt Muskeln im Defizit':'optimal für Aufbau'}), `+
+    `Fett <b>${fett} g</b> (Hormonhaushalt), Rest Carbs <b>${carb} g</b> (Trainingsenergie). Mit „Speichern" übernehmen.`;
+}
+/* KFA-Schätzung per Oberkörper-Foto */
+function kfaPhoto(){pendingScanTask='kfa_estimate';$('#photoInput').click();}
+function showKfaResult(res){
+  const el=$('#kfaResult');if(!el)return;
+  window._kfaVal=+res.kfa_geschaetzt||0;
+  el.innerHTML=`<div style="border:1px solid var(--line);border-radius:15px;padding:14px;background:var(--field)">
+    <div class="row" style="justify-content:space-between">
+      <b style="font-size:22px">≈ ${fmt(res.kfa_geschaetzt,1)} % KFA</b>
+      <span class="badge geschaetzt">Spanne ${fmt(res.spanne_min,1)}–${fmt(res.spanne_max,1)} %</span></div>
+    <p class="sub" style="margin:10px 0">${esc(res.einschaetzung||'')}</p>
+    ${(res.tipps||[]).map(t=>`<p style="font-size:12.5px;margin:5px 0;color:var(--mut)">💡 ${esc(t)}</p>`).join('')}
+    <button class="btn sm" style="margin-top:10px" onclick="S.profile.kfa=window._kfaVal;save();renderSettings();toast('KFA ins Profil übernommen ✓')">✓ ${fmt(res.kfa_geschaetzt,1)} % ins Profil übernehmen</button>
+  </div>`;
 }
 function exportData(){
   const a=document.createElement('a');
@@ -1325,50 +1634,131 @@ const _delSupp=delSupp;delSupp=function(id){_delSupp(id);if(S.pushEnabled)pushSy
 
 /* ─── ECHTER BARCODE-SCANNER (BarcodeDetector → ZXing-Fallback) + OPEN FOOD FACTS ─── */
 let bcStream=null,bcStop=false;
+function fetchTimeout(url,ms=7000){const c=new AbortController();const t=setTimeout(()=>c.abort(),ms);
+  return fetch(url,{signal:c.signal}).finally(()=>clearTimeout(t));}
 async function scanBarcodeLive(){
   modal(`<div class="mhead"><h3>📡 Barcode scannen</h3><button class="x" onclick="stopBarcode();closeModal()">✕</button></div>
-    <video id="bcVideo" autoplay playsinline muted style="width:100%;border-radius:14px;background:#000;min-height:220px"></video>
-    <p class="sub" id="bcStatus" style="text-align:center;margin-top:10px">Kamera auf den Barcode richten…</p>`);
-  try{bcStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});}
-  catch{toast('Kamera-Zugriff verweigert','err');closeModal();return;}
-  const v=$('#bcVideo');if(!v){stopBarcode();return;}
-  v.srcObject=bcStream;bcStop=false;
+    <div style="position:relative;border-radius:14px;overflow:hidden;background:#000">
+      <video id="bcVideo" autoplay playsinline muted style="width:100%;display:block;min-height:240px"></video>
+      <div style="position:absolute;left:8%;right:8%;top:34%;bottom:34%;border:2px solid rgba(255,255,255,.9);border-radius:10px;box-shadow:0 0 0 2000px rgba(0,0,0,.28)"></div>
+    </div>
+    <p class="sub" id="bcStatus" style="text-align:center;margin-top:10px">Barcode ruhig &amp; mittig ins Feld halten – ca. 10–15 cm Abstand</p>
+    <div class="row" style="margin-top:2px;justify-content:center"><button class="btn sm ghost" id="bcTorch" style="display:none" onclick="toggleTorch()">🔦 Licht an/aus</button></div>
+    <div class="row" style="margin-top:12px;border-top:1px solid var(--line);padding-top:12px;flex-wrap:nowrap">
+      <input id="bcManual" inputmode="numeric" placeholder="Barcode-Nr. manuell eingeben" style="flex:1"
+        onkeydown="if(event.key==='Enter'){const v=this.value.replace(/\\D/g,'');v.length>=8?onBarcode(v):toast('Mind. 8 Ziffern','err');}">
+      <button class="btn sm" onclick="const v=$('#bcManual').value.replace(/\\D/g,'');v.length>=8?onBarcode(v):toast('Mind. 8 Ziffern','err')">OK</button>
+    </div>`);
+  const v=$('#bcVideo');bcStop=false;
   if('BarcodeDetector' in window){
-    const det=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128']});
-    const loop=async()=>{
+    // eigene Kamera + schnelle Erkennung + Taschenlampe
+    const get=c=>navigator.mediaDevices.getUserMedia(c);
+    try{bcStream=await get({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}}});}
+    catch{try{bcStream=await get({video:{facingMode:'environment'}});}catch{try{bcStream=await get({video:true});}catch{toast('Kamera-Zugriff verweigert','err');return;}}}
+    if(!$('#bcVideo')){stopBarcode();return;}
+    v.srcObject=bcStream;
+    const track=bcStream.getVideoTracks?.()[0];window._bcTrack=track;
+    try{const caps=track.getCapabilities?.()||{};
+      if(caps.torch)$('#bcTorch').style.display='inline-flex';
+      if(caps.focusMode&&caps.focusMode.includes('continuous'))await track.applyConstraints({advanced:[{focusMode:'continuous'}]});
+    }catch{}
+    let det;try{det=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39','codabar','itf']});}catch{det=new BarcodeDetector();}
+    const tick=async()=>{
       if(bcStop||!$('#bcVideo'))return;
-      try{const codes=await det.detect(v);if(codes.length)return onBarcode(codes[0].rawValue);}catch{}
-      setTimeout(loop,350);
+      try{const codes=await det.detect(v);const c=codes&&codes.find(x=>x.rawValue);if(c)return onBarcode(c.rawValue);}catch{}
+      if(v.requestVideoFrameCallback)v.requestVideoFrameCallback(()=>tick());else setTimeout(tick,110);
     };
-    setTimeout(loop,600);
+    if(v.requestVideoFrameCallback)v.requestVideoFrameCallback(()=>tick());else setTimeout(tick,150);
   }else{
-    const st=$('#bcStatus');if(st)st.textContent='Lade Scanner-Engine…';
+    // ZXing-Fallback (u. a. iOS-Safari, das kein BarcodeDetector hat) – kontinuierlich, Rückkamera bevorzugt
+    const st=$('#bcStatus');if(st)st.textContent='Scanner wird geladen…';
     try{
-      await loadScript('https://unpkg.com/@zxing/library@0.18.6/umd/index.min.js');
-      const reader=new ZXing.BrowserMultiFormatReader();
-      const result=await reader.decodeOnceFromStream(bcStream,v);
-      if(!bcStop)onBarcode(result.getText());
-    }catch(e){if(!bcStop){toast('Kein Barcode erkannt – nutze den KI-Verpackungs-Scan','err');stopBarcode();closeModal();}}
+      await loadScript('https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js');
+      const reader=new ZXing.BrowserMultiFormatReader();window._zxReader=reader;
+      let devId=null;try{const ds=await reader.listVideoInputDevices();
+        devId=(ds.find(d=>/back|rear|environment|hinten|rück/i.test(d.label))||ds[ds.length-1])?.deviceId||null;}catch{}
+      if(st)st.textContent='Barcode ruhig &amp; mittig ins Feld halten…';
+      reader.decodeFromVideoDevice(devId,'bcVideo',(result)=>{if(result&&!bcStop)onBarcode(result.getText());});
+    }catch(e){const st2=$('#bcStatus');if(st2)st2.innerHTML='Scanner nicht ladbar – gib die Nummer unten ein oder fotografiere die Verpackung.';}
   }
 }
-function stopBarcode(){bcStop=true;try{bcStream?.getTracks().forEach(t=>t.stop());}catch{}bcStream=null;}
+function toggleTorch(){const tr=window._bcTrack;if(!tr)return;window._torchOn=!window._torchOn;
+  tr.applyConstraints({advanced:[{torch:window._torchOn}]}).catch(()=>toast('Licht lässt sich nicht steuern','err'));}
+function stopBarcode(){bcStop=true;try{window._zxReader?.reset?.();}catch{}window._zxReader=null;window._bcTrack=null;window._torchOn=false;
+  try{bcStream?.getTracks().forEach(t=>t.stop());}catch{}bcStream=null;}
+// Open Food Facts robust: Timeout + Retry + deutscher Spiegel. undefined = nicht erreichbar, null = nicht gefunden.
+async function offLookup(ean){
+  const fields='product_name,product_name_de,brands,nutriments';
+  for(const h of ['https://world.openfoodfacts.org','https://de.openfoodfacts.org']){
+    for(let a=0;a<2;a++){
+      try{const r=await fetchTimeout(`${h}/api/v2/product/${encodeURIComponent(ean)}.json?fields=${fields}`,7000);
+        if(!r.ok)continue;const d=await r.json();
+        if(d.status===1&&d.product?.nutriments?.['energy-kcal_100g']!=null)return d.product;
+        if(d.status===0)return null;
+      }catch{/* Timeout/Netz → nächster Versuch/Spiegel */}
+    }
+  }
+  return undefined;
+}
+async function offTextSearch(term){
+  const r=await fetchTimeout('https://world.openfoodfacts.org/cgi/search.pl?search_terms='+encodeURIComponent(term)
+    +'&search_simple=1&action=process&json=1&page_size=10&fields=code,product_name,product_name_de,brands,nutriments',9000);
+  const d=await r.json();
+  return (d.products||[]).filter(p=>p.nutriments?.['energy-kcal_100g']!=null).slice(0,7);
+}
 async function onBarcode(ean){
   stopBarcode();closeModal();
-  loading(true,'Open Food Facts wird abgefragt…');
-  try{
-    const r=await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(ean)}.json`);
-    const d=await r.json();
-    if(d.status!==1||!d.product){toast(`Produkt ${ean} nicht in Open Food Facts – nutze den KI-Verpackungs-Scan`,'err');return;}
-    const p=d.product;
-    window._offProduct={ean,name:p.product_name_de||p.product_name||'Produkt',n:p.nutriments||{}};
-    const n=window._offProduct.n;
-    modal(`<div class="mhead"><h3>✅ ${esc(window._offProduct.name)}</h3><button class="x" onclick="closeModal()">✕</button></div>
-      <p class="sub"><span class="badge verifiziert">verifiziert</span> EAN ${esc(ean)} · pro 100g: ${fmt(n['energy-kcal_100g'])} kcal · P ${fmt(n.proteins_100g,1)}g · C ${fmt(n.carbohydrates_100g,1)}g · F ${fmt(n.fat_100g,1)}g</p>
-      <label>Verzehrte Menge (g)</label>
-      <input type="number" id="offMenge" value="100" style="max-width:140px">
-      <div class="row" style="margin-top:16px"><button class="btn" onclick="trackOFF()">Übernehmen</button></div>`);
-  }catch(e){toast('Open Food Facts nicht erreichbar: '+e.message,'err');}
-  finally{loading(false);}
+  ean=String(ean||'').trim();
+  loading(true,'Produkt wird gesucht…');
+  let p;try{p=await offLookup(ean);}catch{p=undefined;}
+  loading(false);
+  if(p)return showOffProduct(ean,p);
+  showBarcodeFallback(ean, p===null?'Produkt ist nicht in der Datenbank':'Datenbank gerade nicht erreichbar');
+}
+function showOffProduct(ean,p){
+  window._offProduct={ean,name:p.product_name_de||p.product_name||'Produkt',n:p.nutriments||{}};
+  const n=window._offProduct.n;
+  modal(`<div class="mhead"><h3>✅ ${esc(window._offProduct.name)}</h3><button class="x" onclick="closeModal()">✕</button></div>
+    <p class="sub"><span class="badge verifiziert">verifiziert</span> ${ean?'EAN '+esc(ean)+' · ':''}pro 100g: ${fmt(n['energy-kcal_100g'])} kcal · P ${fmt(n.proteins_100g,1)}g · C ${fmt(n.carbohydrates_100g,1)}g · F ${fmt(n.fat_100g,1)}g</p>
+    <label>Verzehrte Menge (g)</label>
+    <input type="number" id="offMenge" value="100" style="max-width:140px">
+    <div class="row" style="margin-top:16px"><button class="btn" onclick="trackOFF()">Übernehmen</button></div>`);
+}
+// Wenn nichts in der DB: automatisch woanders suchen (Namenssuche), KI schätzen, Verpackung scannen oder manuell
+function showBarcodeFallback(ean,reason){
+  modal(`<div class="mhead"><h3>🔎 ${ean?'Barcode '+esc(ean):'Produkt suchen'}</h3><button class="x" onclick="closeModal()">✕</button></div>
+    <p class="sub">${esc(reason)}. Kein Problem – so kommst du trotzdem an die Nährwerte:</p>
+    <label>Produktname</label>
+    <input id="bcName" placeholder="z. B. Milbona Skyr Vanille" onkeydown="if(event.key==='Enter')offNameSearch()">
+    <div class="row" style="margin-top:10px">
+      <button class="btn sm" onclick="offNameSearch()">🔎 In Datenbank suchen</button>
+      <button class="btn sm" onclick="aiEstimateProduct()">🤖 KI schätzt Nährwerte</button>
+    </div>
+    <div id="bcResults" style="margin-top:12px"></div>
+    <div class="row" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+      <button class="btn sm ghost" onclick="closeModal();scanPhoto('barcode_label')">📷 Verpackung fotografieren</button>
+      <button class="btn sm ghost" onclick="closeModal();openManualMeal()">✍️ Manuell</button>
+      ${ean?`<button class="btn sm ghost" onclick="onBarcode('${esc(ean)}')">↻ Erneut versuchen</button>`:''}
+    </div>`);
+}
+async function offNameSearch(){
+  const term=$('#bcName')?.value.trim();if(!term)return toast('Bitte Produktnamen eingeben','err');
+  const box=$('#bcResults');if(box)box.innerHTML='<p class="sub">Suche in Open Food Facts…</p>';
+  let ps=[];try{ps=await offTextSearch(term);}catch{}
+  if(!box)return;
+  if(!ps.length){box.innerHTML='<p class="sub">Nichts gefunden. Nutze „🤖 KI schätzt Nährwerte" oder fotografiere die Verpackung.</p>';return;}
+  window._offSearchRes=ps;
+  box.innerHTML=ps.map((p,j)=>{const n=p.nutriments;return `<div class="item"><div class="t">
+    <b>${esc(p.product_name_de||p.product_name||'Produkt')}</b>
+    <span>${esc((p.brands||'').split(',')[0])} · pro 100g: ${fmt(n['energy-kcal_100g'])} kcal · P ${fmt(n.proteins_100g,1)}</span></div>
+    <button class="btn sm" onclick="pickOffSearch(${j})">✓</button></div>`;}).join('');
+}
+function pickOffSearch(j){const p=(window._offSearchRes||[])[j];if(p)showOffProduct(p.code||'',p);}
+async function aiEstimateProduct(){
+  const term=$('#bcName')?.value.trim();if(!term)return toast('Bitte erst den Produktnamen eingeben','err');
+  closeModal();
+  const res=await aiCall('food_text',{text:'Produkt aus dem Supermarkt: '+term+'. Schätze realistische Nährwerte für eine übliche Portion.'},'KI schätzt Nährwerte…');
+  confirmMeal(res,'KI-Schätzung: '+term);
 }
 function offMicros(n,f){
   const map={sodium_100g:['natrium_mg',1000],calcium_100g:['calcium_mg',1000],iron_100g:['eisen_mg',1000],
@@ -1400,6 +1790,12 @@ $('#photoInput').onchange=async e=>{
     const res=await aiCall('recipe_from_photo',{imageBase64:b64,mimeType:'image/jpeg',context:prefsContext()},'Rezept wird aus dem Foto erstellt…');
     window._genRecipes=[...(res.rezepte||[]),...(window._genRecipes||[])];
     showTab('rezepte');toast('Rezept aus Foto ✓');return;
+  }
+  if(pendingScanTask==='kfa_estimate'){
+    const p=S.profile;
+    const res=await aiCall('kfa_estimate',{imageBase64:b64,mimeType:'image/jpeg',
+      context:{gewicht:p.gewicht,groesse:p.groesse,alter:p.alter,geschlecht:p.geschlecht,ziel:p.ziel}},'Körper wird analysiert…');
+    showKfaResult(res);return;
   }
   const res=await aiCall(pendingScanTask,{imageBase64:b64,mimeType:'image/jpeg'},
     pendingScanTask==='barcode_label'?'Verpackung wird gelesen…':'Mahlzeit wird analysiert…');
@@ -1433,7 +1829,20 @@ async function genWeeklyPlan(){
     if((res.tage||[]).length)tage=res.tage;
   }
   const liste=buildShoppingList(tage);
-  S.weeklyPlan={created:todayStr(),checked:{},tage,einkaufsliste:liste.length?liste:(res.einkaufsliste||[])};
+  let gesamtPreis=0;
+  try{ // dedizierter Preis-Task: Zuordnung per Index → JEDE Position bekommt einen Preis
+    gesamtPreis=await priceShoppingList(liste);
+  }catch{ // Fallback: Preise per Namens-Abgleich aus der KI-Einkaufsliste übernehmen
+    const aiListe=res.einkaufsliste||[];
+    liste.forEach(it=>{
+      const n=it.name.toLowerCase().trim();
+      const m=aiListe.find(a=>(a.name||'').toLowerCase().trim()===n)
+        ||aiListe.find(a=>{const an=(a.name||'').toLowerCase().trim();return an&&(an.includes(n)||n.includes(an));});
+      if(m){it.preis_eur=+m.preis_eur||0;it.marke=m.marke||'';}
+    });
+    gesamtPreis=+res.gesamt_preis_eur||0;
+  }
+  S.weeklyPlan={created:todayStr(),checked:{},tage,einkaufsliste:liste.length?liste:(res.einkaufsliste||[]),gesamtPreis};
   rememberNames(tage.flatMap(meals).map(m=>m.name));
   save();renderWeekPlan();toast('Wochenplan für 7 Tage ✓');
 }
@@ -1448,12 +1857,31 @@ function renderWeekPlan(){
       ${(w.tage||[]).map(t=>`<details style="padding:7px 0;border-bottom:1px solid var(--line)">
         <summary style="cursor:pointer;font-weight:700">${esc(t.tag)}</summary>
         ${mealRow(t.fruehstueck,'🌅')}${mealRow(t.mittagessen,'☀️')}${mealRow(t.abendessen,'🌙')}</details>`).join('')}</div>
-    <div class="card"><h2 style="margin-top:0">🛒 Einkaufsliste</h2>
+    <div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin-top:0">🛒 Einkaufsliste</h2>
+      ${(w.einkaufsliste||[]).some(z=>!(+z.preis_eur))?'<button class="btn sm ghost" onclick="repriceWeekList()">💶 Preise ergänzen</button>':''}</div>
       ${(w.einkaufsliste||[]).map((z,i)=>`<div class="row" style="padding:5px 0;border-bottom:1px solid var(--line);flex-wrap:nowrap">
         <input type="checkbox" style="width:18px;flex-shrink:0" ${w.checked[i]?'checked':''} onchange="S.weeklyPlan.checked[${i}]=this.checked;save()">
-        <span style="flex:1;font-size:13.5px;${''}">${esc(z.name)}</span>
-        <b style="font-size:13px;white-space:nowrap">${fmt(z.menge)} ${esc(z.einheit||'')}</b></div>`).join('')||'<p class="sub">Leer.</p>'}</div>
+        <span style="flex:1;font-size:13.5px">${esc(z.name)}${z.marke?`<br><span class="sub" style="font-size:11px">🏷️ ${esc(z.marke)}</span>`:''}</span>
+        <span style="text-align:right;white-space:nowrap"><b style="font-size:13px">${fmt(z.menge)} ${esc(z.einheit||'')}</b>
+          ${+z.preis_eur?`<br><span style="font-size:12px;color:var(--acc2);font-weight:700">${fmt(z.preis_eur,2)} €</span>`:''}</span></div>`).join('')||'<p class="sub">Leer.</p>'}
+      ${(()=>{const sum=(w.einkaufsliste||[]).reduce((a,z)=>a+(+z.preis_eur||0),0)||+w.gesamtPreis||0;
+        return sum?`<div class="row" style="justify-content:space-between;padding-top:12px;margin-top:6px;border-top:2px solid var(--line)">
+          <b>💶 Gesamtpreis Woche</b><b style="font-size:16px;color:var(--acc2)">≈ ${fmt(sum,2)} €</b></div>`:'';})()}</div>
   </div>`;
+}
+// Preis-Schätzung für die fertige Einkaufsliste (Index-Zuordnung – kein fehleranfälliges Namens-Matching)
+async function priceShoppingList(liste){
+  if(!liste.length)return 0;
+  const res=await aiCall('price_lookup',{context:{positionen:liste.map(z=>({name:z.name,menge:z.menge,einheit:z.einheit}))}},
+    'Preise werden geschätzt…');
+  (res.positionen||[]).forEach((p,i)=>{if(liste[i]){liste[i].preis_eur=+p.preis_eur||0;if(p.marke)liste[i].marke=p.marke;}});
+  return liste.reduce((a,z)=>a+(+z.preis_eur||0),0)||+res.gesamt_preis_eur||0;
+}
+// Bestehende Liste nachbepreisen (für Pläne, die noch ohne/mit lückenhaften Preisen erstellt wurden)
+async function repriceWeekList(){
+  const w=S.weeklyPlan;if(!w?.einkaufsliste?.length)return;
+  w.gesamtPreis=await priceShoppingList(w.einkaufsliste);
+  save();renderWeekPlan();toast('💶 Preise ergänzt ✓');
 }
 const _renderRecipes=renderRecipes;renderRecipes=function(){_renderRecipes();renderWeekPlan();};
 
@@ -1501,30 +1929,75 @@ const _renderDash=renderDash;renderDash=function(){_renderDash();renderCharts();
 /* ─── CLOUD-SYNC (Firebase: Registrierung / Login / Firestore) ─── */
 let fbUser=null,cloudTimer=null;
 function showGate(on){const g=$('#authGate');if(g)g.style.display=on?'flex':'none';}
+function gateAuthError(code,msg){
+  const M={
+    'auth/network-request-failed':'🌐 Firebase ist nicht erreichbar. Prüfe deine Internetverbindung. Nutzt du einen Ad-/Tracking-Blocker (uBlock, Brave-Shields, Pi-hole)? Der blockt evtl. <b>identitytoolkit.googleapis.com</b> – nimm diese Seite dort aus.',
+    'auth/invalid-email':'Die E-Mail-Adresse ist ungültig.',
+    'auth/user-not-found':'Kein Konto mit dieser E-Mail – bitte zuerst registrieren.',
+    'auth/wrong-password':'Falsches Passwort.',
+    'auth/invalid-credential':'E-Mail oder Passwort ist falsch.',
+    'auth/email-already-in-use':'Diese E-Mail ist bereits registriert – bitte einloggen.',
+    'auth/weak-password':'Passwort zu schwach (mindestens 6 Zeichen).',
+    'auth/too-many-requests':'Zu viele Versuche – bitte kurz warten und erneut probieren.',
+    'auth/operation-not-allowed':'E-Mail/Passwort-Login ist im Firebase-Projekt nicht aktiviert.'
+  };
+  return M[code]||('Fehler: '+(msg||code));
+}
 async function gateAuth(method){
   const em=$('#gateEmail').value.trim(),pw=$('#gatePass').value;
   if(!em||!pw)return toast('E-Mail und Passwort eingeben','err');
-  $('#gateStatus').textContent='Einen Moment…';
-  try{await firebase.auth()[method](em,pw);
-    toast(method.startsWith('create')?'Account erstellt ✓':'Eingeloggt ✓');
-  }catch(e){$('#gateStatus').textContent='Fehler: '+(e.message||e.code);}
+  // Registrieren nur mit Einwilligung in die Verarbeitung von Gesundheitsdaten (Art. 9 DSGVO)
+  if(method.startsWith('create')&&!$('#gateConsent')?.checked)return toast('Bitte die Einwilligung zu Gesundheitsdaten bestätigen','err');
+  const st=$('#gateStatus');
+  // Firebase-Auth verlangt einen sicheren Kontext – http://IP-Adresse (z. B. am Handy) schlägt sonst mit network-request-failed fehl
+  if(!window.isSecureContext){
+    st.innerHTML='🔒 Diese Seite läuft nicht über HTTPS. Der Login funktioniert nur über <b>https://</b> oder <b>localhost</b> – nicht über eine <b>http://IP-Adresse</b>. Öffne die App über ihre HTTPS-Adresse.';return;}
+  if(typeof firebase==='undefined'||!firebase.apps?.length){st.textContent='Verbindung wird aufgebaut…';try{await initFirebase();}catch{}}
+  if(typeof firebase==='undefined'){st.textContent='Firebase konnte nicht geladen werden – Internet prüfen und Seite neu laden.';return;}
+  // In-App-Browser (Instagram/WhatsApp/…) erkennen – blockieren häufig Google-Auth
+  if(/(FBAN|FBAV|Instagram|Line\/|WhatsApp|TikTok|Snapchat)/i.test(navigator.userAgent)){
+    st.innerHTML='📱 Du hast die Seite in einem <b>In-App-Browser</b> (z. B. Instagram/WhatsApp) geöffnet – der blockiert den Login. Tippe auf „⋯" und wähle <b>„Im Browser öffnen"</b> (Safari/Chrome), dort klappt die Anmeldung.';return;
+  }
+  st.textContent='Einen Moment…';
+  for(let attempt=1;attempt<=2;attempt++){
+    try{
+      await firebase.auth()[method](em,pw);
+      if(method.startsWith('create')){ S.consentHealthAt=Date.now(); save(); }   // Nachweis der Einwilligung, synct mit dem Konto
+      toast(method.startsWith('create')?'Account erstellt ✓':'Eingeloggt ✓');return;
+    }catch(e){
+      const code=e.code||'';
+      if(code==='auth/network-request-failed'&&attempt<2){st.textContent='Netzwerkproblem – neuer Versuch…';await new Promise(r=>setTimeout(r,1300));continue;}
+      if(code==='auth/network-request-failed'){st.innerHTML=await diagnoseNetwork();return;}
+      st.innerHTML=gateAuthError(code,e.message);return;
+    }
+  }
+}
+// Unterscheidet „Google/Firebase wird blockiert" von „gar kein Internet" (Probe über den eigenen Worker)
+async function diagnoseNetwork(){
+  $('#gateStatus').textContent='Verbindung wird geprüft…';
+  let onlineElsewhere=false;
+  try{await fetch((workerBase()||'https://sdbyjason.github.io')+'/manifest.webmanifest?'+Date.now(),{cache:'no-store',mode:'no-cors'});onlineElsewhere=true;}catch{}
+  if(!onlineElsewhere&&navigator.onLine)onlineElsewhere=true; // Browser meldet online, Probe evtl. durch no-cors verschluckt
+  return onlineElsewhere
+    ? '🚫 <b>Google/Firebase wird auf deinem Gerät blockiert</b> (sonstiges Internet funktioniert). Ursache ist fast immer ein <b>Ad-/Tracking-Blocker</b> (uBlock, Brave-Shields, AdGuard, strenger Firefox-Schutz) oder ein <b>Firmen-/Schul-/Pi-hole-Netz</b>. Lösung: Blocker für diese Seite deaktivieren bzw. <b>identitytoolkit.googleapis.com</b> erlauben – oder ein anderes Netz/den Standard-Browser (Safari/Chrome) probieren.'
+    : '🌐 <b>Keine Internetverbindung.</b> Bitte WLAN/Mobilfunk prüfen und erneut versuchen.';
 }
 async function initFirebase(){
-  if(!APP_CONFIG.firebase?.apiKey){updateFbStatus();return;}
+  if(!APP_CONFIG.firebase?.apiKey)return;
   try{
     await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
     await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js');
     await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js');
     if(!firebase.apps.length)firebase.initializeApp(APP_CONFIG.firebase);
     firebase.auth().onAuthStateChanged(async u=>{
-      fbUser=u;updateFbStatus();
+      fbUser=u;
       if(u){
         localStorage.setItem('apexfit_uid',u.uid);
         // anderes Konto auf diesem Gerät? Lokale Daten gehören dem alten Account → frisch starten, Cloud lädt gleich
-        if(S._uid&&S._uid!==u.uid){S=structuredClone(DEFAULTS);S.workerUrl=APP_CONFIG.workerUrl;rerenderAll();}
-        S._uid=u.uid;save();
+        if(S._uid&&S._uid!==u.uid){S=structuredClone(DEFAULTS);migrateState();rerenderAll();}
+        S._uid=u.uid;persist(); // kein save(): Login ist keine Datenänderung, sonst gilt der Stand fälschlich als "ungesynct"
         showGate(false);
-        cloudPull().catch(e=>toast('Sync: '+e.message,'err'));
+        startCloudSync();
       }else{
         showGate(true);
       }
@@ -1535,49 +2008,137 @@ async function initFirebase(){
     else{const g=$('#gateStatus');if(g)g.textContent='Keine Verbindung – für die erste Anmeldung wird Internet benötigt.';}
   }
 }
-async function fbAuthDo(method){
-  if(!APP_CONFIG.firebase?.apiKey)return toast('Cloud-Sync ist vom Betreiber noch nicht konfiguriert','err');
-  if(typeof firebase==='undefined')await initFirebase();
-  const em=$('#fbEmail').value.trim(),pw=$('#fbPass').value;
-  if(!em||!pw)return toast('E-Mail und Passwort eingeben','err');
-  try{
-    await firebase.auth()[method](em,pw);
-    toast(method.startsWith('create')?'Account erstellt ✓':'Eingeloggt ✓');
-  }catch(e){toast('Auth-Fehler: '+(e.message||e.code),'err');}
+function fbLogout(){try{stopCloudSync();localStorage.removeItem('apexfit_uid');firebase.auth().signOut();toast('Ausgeloggt');}catch{}}
+/* PURE Merge: vereinigt zwei Zustände a+b zu EINEM neuen, ohne dass Daten verloren gehen.
+   Sammlungen werden per id/Datum/Key vereinigt; bei Skalaren (Profil/Ziele) gewinnt die neuere Seite (_updatedAt). */
+function mergeStates(a,b){
+  a=a||{};b=b||{};
+  const newer=(b._updatedAt||0)>=(a._updatedAt||0)?b:a, older=newer===b?a:b;
+  const R=structuredClone(DEFAULTS);
+  R.profile=structuredClone(newer.profile||older.profile||DEFAULTS.profile);
+  R.targets=structuredClone(newer.targets||older.targets||DEFAULTS.targets);
+  R.prefs=Object.assign({},older.prefs,newer.prefs);
+  R.planPushTime=newer.planPushTime||older.planPushTime;
+  R.pushEnabled=!!(a.pushEnabled||b.pushEnabled);
+  R.onboarded=!!(a.onboarded||b.onboarded);
+  R.fitbitUid=newer.fitbitUid||older.fitbitUid;
+  ['fasting','weeklyPlan','tips','coach','insightsAi','dailyInsight'].forEach(k=>{R[k]=newer[k]??older[k]??null;});
+  // Tombstones (Löschungen) beider Seiten vereinigen – damit Gelöschtes NICHT wieder auftaucht
+  R.tomb={};[a.tomb||{},b.tomb||{}].forEach(src=>{for(const k in src)R.tomb[k]=Math.max(R.tomb[k]||0,+src[k]||0);});
+  const dead=k=>!!R.tomb[k];
+  const clearedAt=R.coachChatClearedAt=Math.max(a.coachChatClearedAt||0,b.coachChatClearedAt||0);
+  // Mahlzeiten: pro Datum, Einträge per id vereinigen (gelöschte raus)
+  R.meals={};[a.meals||{},b.meals||{}].forEach(src=>{for(const d in src){
+    const m=new Map((R.meals[d]||[]).map(x=>[x.id,x]));(src[d]||[]).forEach(x=>x?.id&&!dead('meal:'+x.id)&&m.set(x.id,x));
+    const arr=[...m.values()].sort((x,y)=>(x.zeit||'')<(y.zeit||'')?-1:1);if(arr.length)R.meals[d]=arr;}});
+  // Wasser & Alkohol: pro Datum das Maximum
+  ['water','alcohol'].forEach(k=>{R[k]={};[a[k]||{},b[k]||{}].forEach(src=>{for(const d in src)R[k][d]=Math.max(R[k][d]||0,+src[d]||0);});});
+  // id-Sammlungen vereinigen (gelöschte raus)
+  const uni=(k,pfx)=>{const m=new Map();[...(a[k]||[]),...(b[k]||[])].forEach(x=>x?.id&&!dead(pfx+':'+x.id)&&m.set(x.id,x));return[...m.values()];};
+  R.logs=uni('logs','log').sort((x,y)=>x.date<y.date?1:-1);
+  R.plans=uni('plans','plan');
+  // Supplements: id vereinigen + genommen-Status zusammenführen (OR), gelöschte raus
+  const sm=new Map();[...(a.supplements||[]),...(b.supplements||[])].forEach(s=>{if(!s?.id||dead('supp:'+s.id))return;
+    const ex=sm.get(s.id);sm.set(s.id, ex?{...ex,...s,genommen:Object.assign({},ex.genommen,s.genommen)}:s);});
+  R.supplements=[...sm.values()];
+  // Biometrie & Maße: pro Datum (neuere Seite gewinnt bei Konflikt)
+  ['biometrics','measurements'].forEach(k=>{const m=new Map();
+    (older[k]||[]).forEach(e=>e?.date&&m.set(e.date,e));(newer[k]||[]).forEach(e=>e?.date&&m.set(e.date,e));
+    R[k]=[...m.values()].sort((x,y)=>x.date<y.date?-1:1);});
+  // Rezepte per Name (gelöschte raus)
+  const rn=new Map();[...(a.recipes||[]),...(b.recipes||[])].forEach(r=>r?.name&&!dead('recipe:'+r.name)&&rn.set(r.name,r));R.recipes=[...rn.values()];
+  // Skill-Logs per Komposit-Key, Skill-Bestwerte als Maximum
+  const sl=new Map();[...(a.skillLogs||[]),...(b.skillLogs||[])].forEach(l=>l&&sl.set([l.date,l.name,l.seconds].join('|'),l));R.skillLogs=[...sl.values()];
+  R.skills={};[a.skills||{},b.skills||{}].forEach(src=>Object.entries(src).forEach(([k,v])=>{if((+v||0)>(R.skills[k]||0))R.skills[k]=+v;}));
+  // Coach-Chat per ts|rolle, zeitlich sortiert, gelöschte Historie (vor clearedAt) raus
+  const cc=new Map();[...(a.coachChat||[]),...(b.coachChat||[])].forEach(m=>m&&(m.ts||0)>=clearedAt&&cc.set(m.ts+'|'+m.role,m));
+  R.coachChat=[...cc.values()].sort((x,y)=>(x.ts||0)-(y.ts||0));
+  // Tagespläne pro Datum (neuere Seite gewinnt)
+  R.dailyPlans=Object.assign({},older.dailyPlans,newer.dailyPlans);
+  R.recentRecipeNames=[...new Set([...(a.recentRecipeNames||[]),...(b.recentRecipeNames||[])])].slice(-40);
+  // Progress-Fotos vereinigen (max 20, gelöschte raus), Zyklus-Starts vereinigen
+  const pp=new Map();[...(a.progressPics||[]),...(b.progressPics||[])].forEach(p=>{if(!p)return;const key=p.date+(p.thumb||'').slice(-24);if(!dead('pic:'+key))pp.set(key,p);});R.progressPics=[...pp.values()].slice(-20);
+  R.cycle={starts:[...new Set([...(a.cycle?.starts||[]),...(b.cycle?.starts||[])])].sort()};
+  // alte Tombstones (>120 Tage) aufräumen, damit sie nicht unbegrenzt wachsen
+  const cut=Date.now()-120*864e5;for(const k in R.tomb)if(R.tomb[k]<cut)delete R.tomb[k];
+  R.workerUrl=APP_CONFIG.workerUrl;
+  return R;
 }
-const fbRegister=()=>fbAuthDo('createUserWithEmailAndPassword');
-const fbLogin=()=>fbAuthDo('signInWithEmailAndPassword');
-function fbLogout(){try{localStorage.removeItem('apexfit_uid');firebase.auth().signOut();toast('Ausgeloggt');}catch{}}
-async function cloudPull(){
-  const doc=await firebase.firestore().collection('apexfit').doc(fbUser.uid).get();
-  if(doc.exists){
-    const d=doc.data();
-    if((d.updatedAt||0)>(S._updatedAt||0)){
-      S=Object.assign(structuredClone(DEFAULTS),JSON.parse(d.data));
-      S.workerUrl=APP_CONFIG.workerUrl;S._uid=fbUser.uid;
-      S._updatedAt=d.updatedAt;save();rerenderAll();
-      toast('☁️ Neuere Daten aus der Cloud geladen');
-    }else if((S._updatedAt||0)>(d.updatedAt||0)){cloudPush();}
-  }else{cloudPush();}
-}
+// Reihenfolge-UNABHÄNGIGE Inhalts-Signatur (Schlüssel sortiert) – sonst meldet der Vergleich nach dem Merge
+// fälschlich „geändert", weil mergeStates die Objekt-Schlüssel neu anordnet → unnötiges Neu-Rendern/Flackern.
+function stableStr(v){
+  if(v===null||typeof v!=='object')return JSON.stringify(v)??'null';
+  if(Array.isArray(v))return '['+v.map(stableStr).join(',')+']';
+  return '{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+stableStr(v[k])).join(',')+'}';}
+const stripMeta=o=>{const c={...o};delete c._updatedAt;delete c._syncedAt;delete c._uid;return stableStr(c);};
+// Serialisierung mit Schutz vor dem 1-MiB-Firestore-Limit (notfalls Progress-Fotos aus dem Cloud-Doc lassen)
+function serializeForCloud(state){let s=JSON.stringify(state);
+  if(s.length>950000)s=JSON.stringify({...state,progressPics:[]});return s;}
+// Transaktionaler Push: liest den aktuellen Cloud-Stand, VEREINT ihn mit lokal, schreibt das Ergebnis → kein Überschreiben
+let _pushing=false,_pushAgain=false;
 async function cloudPush(){
   if(!fbUser)return;
-  S._updatedAt=Date.now();save();
-  await firebase.firestore().collection('apexfit').doc(fbUser.uid).set({data:JSON.stringify(S),updatedAt:S._updatedAt});
-  updateFbStatus();
+  if(_pushing){_pushAgain=true;return;}
+  _pushing=true;
+  const ref=firebase.firestore().collection('apexfit').doc(fbUser.uid);
+  try{
+    let out=null;
+    await firebase.firestore().runTransaction(async tx=>{
+      const snap=await tx.get(ref);
+      let merged=S;
+      if(snap.exists){try{merged=mergeStates(JSON.parse(snap.data().data),S);}catch{merged=S;}}
+      merged._updatedAt=Date.now();merged._uid=fbUser.uid;out=merged;
+      tx.set(ref,{data:serializeForCloud(merged),updatedAt:merged._updatedAt});
+    });
+    // Nur neu rendern, wenn der Merge WIRKLICH Fremd-Daten aus der Cloud gezogen hat (nicht bei jedem eigenen Push).
+    if(out){const changed=stripMeta(out)!==stripMeta(mergeStates({},S));S=out;S._syncedAt=S._updatedAt;persist();if(changed)rerenderAll();}
+    window._syncErrToast=0;updateSyncStatus();
+  }catch(e){
+    if(!window._syncErrToast){window._syncErrToast=1;toast('☁️ Sync gerade nicht möglich – Daten sind lokal gesichert, neuer Versuch folgt automatisch','err');}
+    throw e;
+  }finally{_pushing=false;if(_pushAgain){_pushAgain=false;scheduleCloudPush();}}
 }
-function scheduleCloudPush(){if(!fbUser)return;clearTimeout(cloudTimer);cloudTimer=setTimeout(()=>cloudPush().catch(()=>{}),3000);}
-function cloudSyncNow(){fbUser?cloudPush().then(()=>toast('☁️ Synchronisiert ✓')).catch(e=>toast('Sync-Fehler: '+e.message,'err')):toast('Erst einloggen','err');}
-function updateFbStatus(){
-  const el=$('#fbStatus');if(!el)return;
-  el.textContent=fbUser?('☁️ Verbunden als '+fbUser.email+(S._updatedAt?' · Stand: '+new Date(S._updatedAt).toLocaleString():'')):
-    (APP_CONFIG.firebase?.apiKey?'Nicht eingeloggt – registrieren oder einloggen.':'Cloud-Sync noch nicht konfiguriert (Betreiber: Firebase-Config in APP_CONFIG eintragen).');
+// Live-Sync: Firestore-Listener zieht Änderungen ANDERER Geräte sofort und vereint sie mit dem lokalen Stand
+let _cloudUnsub=null;
+function startCloudSync(){
+  stopCloudSync();
+  const ref=firebase.firestore().collection('apexfit').doc(fbUser.uid);
+  _cloudUnsub=ref.onSnapshot(snap=>{
+    if(!snap.exists){cloudPush().catch(()=>{});return;}
+    if(snap.metadata.hasPendingWrites)return; // eigener Schreibvorgang – ignorieren
+    const d=snap.data();
+    if((d.updatedAt||0)<=(S._syncedAt||0))return; // nichts Neues seit unserem letzten Sync
+    let cloud;try{cloud=JSON.parse(d.data);}catch{return;}
+    const merged=mergeStates(S,cloud);merged._uid=fbUser.uid;
+    const localHadExtra=stripMeta(merged)!==stripMeta(cloud); // haben wir Daten, die die Cloud noch nicht kennt?
+    S=merged;S._syncedAt=d.updatedAt||Date.now();
+    S._updatedAt=localHadExtra?Date.now():S._syncedAt;
+    migrateState();persist();rerenderAll();updateSyncStatus();
+    if(localHadExtra)scheduleCloudPush(); // lokale Extras hochschieben → Geräte konvergieren
+  },err=>{/* offline / Rechte – nächster Versuch beim nächsten Start */});
 }
+function stopCloudSync(){if(_cloudUnsub){try{_cloudUnsub();}catch{}_cloudUnsub=null;}}
+function scheduleCloudPush(){if(!fbUser)return;clearTimeout(cloudTimer);updateSyncStatus();
+  cloudTimer=setTimeout(()=>{cloudTimer=null;cloudPush().catch(()=>{});},1200);}
 function rerenderAll(){renderDash();renderNutrition();renderRecipes();renderTips();renderSupps();renderTraining();renderSkills();renderSettings();}
-// Auto-Sync: erkennt jede lokale Änderung (save schreibt localStorage) und pusht verzögert
-let _lastCloudSnap=localStorage.getItem('apexfit');
-setInterval(()=>{const cur=localStorage.getItem('apexfit');
-  if(cur!==_lastCloudSnap){_lastCloudSnap=cur;scheduleCloudPush();}},4000);
+// Sofort-Sync: jede Datenänderung (save) triggert einen Push nach 1,2 s
+window._onSave=()=>scheduleCloudPush();
+// Sicherheitsnetz: alle 8 s NUR bei echten, ungesicherten Datenänderungen erneut pushen (kein localStorage-Diff –
+// der reagierte sonst auf die Metadaten des Pushs selbst und erzeugte eine Dauerschleife/Flackern).
+setInterval(()=>{if(fbUser&&(S._updatedAt||0)>(S._syncedAt||0)&&!cloudTimer)scheduleCloudPush();},8000);
+// Beim Verlassen/Minimieren der App: offene Änderungen SOFORT pushen (wichtig auf dem Handy!)
+function flushSync(){if(fbUser&&(S._updatedAt||0)>(S._syncedAt||0)){clearTimeout(cloudTimer);cloudTimer=null;cloudPush().catch(()=>{});}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushSync();});
+addEventListener('pagehide',flushSync);
+// Browser bitten, den lokalen Speicher NICHT automatisch zu räumen (iOS/Android Speicherdruck)
+try{navigator.storage?.persist?.();}catch{}
+function updateSyncStatus(){
+  const el=$('#syncStatus');if(!el)return;
+  const dirty=(S._updatedAt||0)>(S._syncedAt||0);
+  el.textContent=!fbUser?'☁️ Offline – Änderungen werden lokal gesichert und beim nächsten Login gesynct':
+    dirty?'⏳ Änderungen werden gesichert…':
+    '☁️ Alles gesichert'+(S._syncedAt?' · Stand '+new Date(S._syncedAt).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):'');
+}
 
 /* ─── FITBIT HEALTH-SYNC ─── */
 function fitbitConnect(){
@@ -1614,7 +2175,7 @@ if(location.hash.startsWith('#fitbit=')){
 const _renderSettings=renderSettings;renderSettings=function(){
   _renderSettings();
   const pp=$('#setPlanPush');if(pp)pp.value=S.planPushTime||'06:30';
-  updateFbStatus();updateFitbitStatus();updatePushStatus();
+  updateFitbitStatus();updatePushStatus();updateSyncStatus();
 };
 const _saveSettings=saveSettings;saveSettings=function(){
   S.planPushTime=$('#setPlanPush').value||'06:30';
@@ -1667,7 +2228,1178 @@ const _showTab2=showTab;showTab=function(id){_showTab2(id);setTimeout(()=>window
 
 /* ─── INIT ─── */
 initFirebase();
-renderWeekPlan();renderCharts();renderWater();updatePushStatus();updateFitbitStatus();updateFbStatus();
+renderWeekPlan();renderCharts();renderWater();updatePushStatus();updateFitbitStatus();
+</script>
+
+<script>
+/* ═══════════════════ Evidence Fit PRO: Korrelations-Engine · Adaptive Ziele · Readiness · Volumen-Landmarken · Gamification ═══════════════════ */
+const dstr=i=>new Date(Date.now()-i*864e5).toISOString().slice(0,10);
+// KI-Call ohne Fullscreen-Loader (für proaktive Hintergrund-Aufgaben)
+async function aiSilent(task,payload={}){
+  const url=(S.workerUrl||'').trim().replace(/\/$/,'');if(!url)throw new Error('no worker');
+  const r=await fetch(url+'/api/ai',{method:'POST',headers:await fitAuthHeaders(),body:JSON.stringify({task,...payload})});
+  if(r.status===402)throw new Error('subscription_required');   // Hintergrund-KI: still bleiben, kein Fenster
+  const d=await r.json();if(!d.ok)throw new Error(d.error||'KI-Fehler');return d.result;
+}
+
+/* ─── TAGES-TABELLE: alle Datentöpfe pro Tag zusammengeführt ─── */
+function dayRow(d){
+  const bio=S.biometrics.find(b=>b.date===d)||{};
+  const t=dayTotals(d);
+  const logs=S.logs.filter(l=>l.date===d);
+  return {date:d,schlaf:bio.schlaf||null,rhr:bio.rhr||null,hrv:bio.hrv||null,gewicht:bio.gewicht||null,
+    kcal:t.kalorien||0,protein:t.protein_g||0,carbs:t.kohlenhydrate_g||0,
+    tonnage:logs.reduce((a,l)=>a+l.tonnage,0),
+    rpe:avg(logs.flatMap(l=>l.sets.map(s=>+s.rpe).filter(Boolean)))||null,
+    alkohol:(S.alcohol||{})[d]||0,wasser:(S.water||{})[d]||0,
+    creatin:S.supplements.some(s=>/creatin|kreatin/i.test(s.name)&&s.genommen?.[d])};
+}
+function dayTable(days=90){return Array.from({length:days},(_,i)=>dayRow(dstr(i)));}
+// PR-Tage: Tage, an denen ein bestehender 1RM-Bestwert übertroffen wurde
+function prDays(){
+  const best={},days=new Set();
+  [...S.logs].sort((a,b)=>a.date<b.date?-1:1).forEach(l=>l.sets.forEach(s=>{
+    if(s.typ!=='reps'||!totalWeight(s)||!s.reps)return;
+    const e=epley(totalWeight(s),s.reps);
+    if(e>(best[s.uebung]||0)){if(best[s.uebung])days.add(l.date);best[s.uebung]=e;}
+  }));
+  return days;
+}
+
+/* ─── KORRELATIONS-ENGINE (lokal & deterministisch – die Zahlen stimmen immer) ─── */
+function computeCorrelations(){
+  const rows=dayTable(90),out=[];
+  const pct=(a,b)=>b?Math.round((a-b)/b*100):0;
+  const nextOf=d=>{const i=rows.findIndex(r=>r.date===d);return i>0?rows[i-1]:null;};
+  // 1) Schlaf → Tonnage
+  const tr=rows.filter(r=>r.tonnage>0&&r.schlaf!=null);
+  const loS=tr.filter(r=>r.schlaf<6.5),hiS=tr.filter(r=>r.schlaf>=6.5);
+  if(loS.length>=3&&hiS.length>=3){
+    const a=avg(loS.map(r=>r.tonnage)),b=avg(hiS.map(r=>r.tonnage)),p=pct(a,b);
+    if(Math.abs(p)>=5)out.push({icon:'😴',titel:'Schlaf × Trainingsleistung',n:tr.length,
+      text:`An Trainingstagen mit unter 6,5 h Schlaf ist deine Tonnage im Schnitt ${Math.abs(p)} % ${p<0?'niedriger':'höher'} (${fmt(a)} vs. ${fmt(b)} kg).`});
+  }
+  // 2) Protein am Vortag → PR-Tage
+  const prs=prDays();
+  const trainDays=rows.filter(r=>r.tonnage>0);
+  if(prs.size>=3){
+    const prevProt=d=>{const i=rows.findIndex(r=>r.date===d);const p=rows[i+1];return p&&p.kcal>800?p.protein/(S.profile.gewicht||80):null;};
+    const prP=[...prs].map(prevProt).filter(v=>v!=null),noP=trainDays.filter(r=>!prs.has(r.date)).map(r=>prevProt(r.date)).filter(v=>v!=null);
+    if(prP.length>=3&&noP.length>=3){
+      const a=avg(prP),b=avg(noP);
+      if(Math.abs(a-b)>=0.15)out.push({icon:'🏆',titel:'Protein × PR-Tage',n:prP.length+noP.length,
+        text:`Vor deinen PR-Tagen lag die Proteinzufuhr am Vortag im Schnitt bei ${fmt(a,2)} g/kg – vor normalen Trainingstagen bei ${fmt(b,2)} g/kg.`});
+    }
+  }
+  // 3) Kreatin-Konstanz → Wochen-Tonnage
+  if(S.supplements.some(s=>/creatin|kreatin/i.test(s.name))){
+    const weeks=[];
+    for(let w=0;w<10;w++){
+      const wr=rows.slice(w*7,(w+1)*7);
+      const ton=wr.reduce((a,r)=>a+r.tonnage,0),cre=wr.filter(r=>r.creatin).length;
+      if(ton>0)weeks.push({ton,cre});
+    }
+    const adh=weeks.filter(w=>w.cre>=5),skip=weeks.filter(w=>w.cre<=3);
+    if(adh.length>=2&&skip.length>=2){
+      const a=avg(adh.map(w=>w.ton)),b=avg(skip.map(w=>w.ton)),p=pct(a,b);
+      if(Math.abs(p)>=5)out.push({icon:'💊',titel:'Kreatin-Konstanz × Leistung',n:weeks.length,
+        text:`In Wochen mit ≥5 Kreatin-Tagen liegt deine Wochen-Tonnage ${Math.abs(p)} % ${p>0?'höher':'niedriger'} als in Wochen mit ≤3 Tagen (${fmt(a)} vs. ${fmt(b)} kg).`});
+    }
+  }
+  // 4) Alkohol → Ruhepuls am Folgetag
+  const aR=rows.filter(r=>r.alkohol>0).map(r=>nextOf(r.date)).filter(r=>r?.rhr).map(r=>r.rhr);
+  const sR=rows.filter(r=>r.alkohol===0&&r.kcal>0).map(r=>nextOf(r.date)).filter(r=>r?.rhr).map(r=>r.rhr);
+  if(aR.length>=3&&sR.length>=5){
+    const a=avg(aR),b=avg(sR);
+    if(a-b>=2)out.push({icon:'🍺',titel:'Alkohol × Recovery',n:aR.length,
+      text:`Am Tag nach Alkohol liegt dein Ruhepuls im Schnitt ${fmt(a-b,1)} Schläge höher (${fmt(a,1)} vs. ${fmt(b,1)} bpm) – dein Körper regeneriert messbar schlechter.`});
+  }
+  // 5) High-Carb-Refeed → Ruhepuls +1 Tag
+  const eat=rows.filter(r=>r.kcal>800);
+  if(eat.length>=10){
+    const avgC=avg(eat.map(r=>r.carbs));
+    const refeeds=eat.filter(r=>r.carbs>avgC*1.35).map(r=>nextOf(r.date)).filter(r=>r?.rhr);
+    const baseR=avg(rows.map(r=>r.rhr).filter(Boolean));
+    if(refeeds.length>=3&&baseR){
+      const a=avg(refeeds.map(r=>r.rhr)),diff=a-baseR;
+      if(Math.abs(diff)>=1.5)out.push({icon:'🍚',titel:'High-Carb-Tage × Ruhepuls',n:refeeds.length,
+        text:`Nach Tagen mit deutlich erhöhten Carbs (>${fmt(avgC*1.35)} g) liegt dein Ruhepuls am Folgetag ${fmt(Math.abs(diff),1)} bpm ${diff>0?'höher':'niedriger'} als dein Schnitt (${fmt(baseR,1)} bpm).`});
+    }
+  }
+  // 6) Schlafmangel → Kalorienzufuhr am Folgetag (Heißhunger-Effekt)
+  const slEat=rows.filter(r=>r.schlaf!=null).map(r=>({s:r.schlaf,next:nextOf(r.date)})).filter(x=>x.next&&x.next.kcal>800);
+  const loE=slEat.filter(x=>x.s<6.5),hiE=slEat.filter(x=>x.s>=7);
+  if(loE.length>=3&&hiE.length>=3){
+    const a=avg(loE.map(x=>x.next.kcal)),b=avg(hiE.map(x=>x.next.kcal)),p=pct(a,b);
+    if(Math.abs(p)>=5)out.push({icon:'🌙',titel:'Schlafmangel × Heißhunger',n:slEat.length,
+      text:`Nach Nächten mit <6,5 h Schlaf isst du am Folgetag im Schnitt ${Math.abs(p)} % ${p>0?'mehr':'weniger'} (${fmt(a)} vs. ${fmt(b)} kcal).`});
+  }
+  return out;
+}
+async function aiInsights(){
+  const cs=computeCorrelations();
+  if(!cs.length)return toast('Noch zu wenig überlappende Daten für eine Analyse','err');
+  const res=await aiCall('insights',{context:{korrelationen:cs.map(c=>c.titel+': '+c.text),
+    tage_mit_daten:dayTable(90).filter(r=>r.kcal>0||r.tonnage>0).length,profil:S.profile,ziele:S.targets}},'Zusammenhänge werden interpretiert…');
+  S.insightsAi={date:todayStr(),...res};save();renderInsights();
+}
+
+/* ─── ADAPTIVER TDEE (MacroFactor-Prinzip: geglätteter Gewichtstrend + echte Zufuhr) ─── */
+function computeTDEE(){
+  const rows=[];for(let i=27;i>=0;i--)rows.push(dayRow(dstr(i)));
+  let ema=null;const pts=[];
+  rows.forEach(r=>{if(r.gewicht!=null){ema=ema==null?r.gewicht:ema*0.75+r.gewicht*0.25;pts.push({d:r.date,ema});}});
+  if(pts.length<8)return null;
+  const span=(new Date(pts[pts.length-1].d)-new Date(pts[0].d))/864e5;
+  if(span<10)return null;
+  const dWd=(pts[pts.length-1].ema-pts[0].ema)/span;
+  const eat=rows.filter(r=>r.kcal>800);
+  if(eat.length<10)return null;
+  const avgIn=avg(eat.map(r=>r.kcal));
+  return {tdee:Math.round(avgIn-dWd*7700),avgIn:Math.round(avgIn),dWw:+(dWd*7).toFixed(2),dWd,
+    days:eat.length,wDays:pts.length,emaNow:+pts[pts.length-1].ema.toFixed(1)};
+}
+function zielDelta(z){return {'Muskelaufbau':300,'Fettabbau':-500,'Kraft':250,'Skills / Calisthenics':100,'Erhaltung':0}[z]??0;}
+function applyAdaptive(t,auto){
+  if(!t)return toast('Noch zu wenig Daten für die TDEE-Berechnung','err');
+  const g=S.profile.gewicht,z=S.profile.ziel;
+  const kcal=Math.round((t.tdee+zielDelta(z))/10)*10;
+  const prot=Math.round(g*(z==='Fettabbau'?2.4:2)),fett=Math.round(g*(z==='Fettabbau'?0.8:1));
+  S.targets={kalorien:kcal,protein:prot,fett,kohlenhydrate:Math.max(50,Math.round((kcal-prot*4-fett*9)/4))};
+  save();renderDash();renderInsights();
+  toast((auto?'⚙️ Wochen-Update: ':'')+`Ziele nachjustiert → ${fmt(kcal)} kcal (echter TDEE: ${fmt(t.tdee)})`);
+}
+function isoWeekStr(){const d=new Date(),o=new Date(d.getFullYear(),0,1);return d.getFullYear()+'-W'+Math.ceil(((d-o)/864e5+o.getDay()+1)/7);}
+function prognoseHTML(t){
+  const zg=+S.profile.zielgewicht;
+  if(!zg||!t||Math.abs(t.dWd)<0.004)return '';
+  const diff=zg-t.emaNow;
+  if(Math.abs(diff)<0.4)return `<p class="sub" style="margin:8px 0 0">🎯 Du bist praktisch am Zielgewicht (${fmt(zg,1)} kg).</p>`;
+  if(diff*t.dWd<=0)return `<p class="sub" style="margin:8px 0 0">⚠️ Dein Trend (${t.dWw>0?'+':''}${fmt(t.dWw,2)} kg/Woche) läuft aktuell vom Ziel ${fmt(zg,1)} kg weg.</p>`;
+  const tage=Math.round(diff/t.dWd);if(tage>730)return '';
+  const dat=new Date(Date.now()+tage*864e5).toLocaleDateString('de-DE',{day:'numeric',month:'long',year:'numeric'});
+  return `<p style="font-size:13px;margin:8px 0 0">📅 Bei diesem Tempo erreichst du <b>${fmt(zg,1)} kg</b> am <b>${dat}</b>.</p>`;
+}
+
+/* ─── READINESS-SCORE (Schlaf + RHR + HRV + Trainingslast + Alkohol) ─── */
+function readinessScore(){
+  const bio=S.biometrics.find(b=>b.date===todayStr())||S.biometrics.find(b=>b.date===dstr(1))||{};
+  const hist=S.biometrics.filter(b=>b.date>=dstr(30));
+  const base=k=>{const v=hist.map(b=>+b[k]).filter(Boolean);return v.length>=5?avg(v):null;};
+  const comps=[];
+  if(bio.schlaf)comps.push({n:'😴 Schlaf',s:Math.min(1,bio.schlaf/8),txt:fmt(bio.schlaf,1)+' h'});
+  const bR=base('rhr');if(bio.rhr&&bR)comps.push({n:'❤️ Ruhepuls',s:Math.max(0,Math.min(1,1-(bio.rhr-bR)/15)),txt:bio.rhr+' vs Ø '+fmt(bR)});
+  const bH=base('hrv');if(bio.hrv&&bH)comps.push({n:'📈 HRV',s:Math.max(0,Math.min(1,.5+(bio.hrv-bH)/bH)),txt:bio.hrv+' vs Ø '+fmt(bH)});
+  const yT=S.logs.filter(l=>l.date===dstr(1)).reduce((a,l)=>a+l.tonnage,0);
+  const tHist=Array.from({length:28},(_,i)=>S.logs.filter(l=>l.date===dstr(i+1)).reduce((a,l)=>a+l.tonnage,0)).filter(v=>v>0);
+  if(yT&&tHist.length>=4)comps.push({n:'🏋️ Last gestern',s:Math.max(.2,Math.min(1,1-(yT/avg(tHist)-1)/1.5)),txt:fmt(yT)+' kg'});
+  const alk=(S.alcohol||{})[dstr(1)]||0;
+  if(alk)comps.push({n:'🍺 Alkohol gestern',s:Math.max(0,1-alk*.25),txt:alk+' Drink'+(alk===1?'':'s')});
+  if(comps.length<2)return null;
+  return {score:Math.round(avg(comps.map(c=>c.s))*100),comps};
+}
+function readinessHTML(rd,compact){
+  const col=rd.score>=75?'var(--acc2)':rd.score>=50?'var(--warn)':'var(--err)';
+  const label=rd.score>=75?'Bereit für Vollgas':rd.score>=50?'Moderat trainieren':'Recovery-Tag empfohlen';
+  return `<h2 style="margin-top:0">⚡ Readiness</h2>
+  <div class="row" style="gap:18px">
+    <div class="ring" style="--p:${rd.score};--c:${col};width:96px;height:96px"><div class="in"><b>${rd.score}</b><span>/100</span></div></div>
+    <div style="flex:1;min-width:150px"><b style="color:${col}">${label}</b>
+    ${compact?'':rd.comps.map(c=>`<div class="row" style="justify-content:space-between;font-size:12px;margin-top:5px"><span>${c.n}</span><span class="sub" style="margin:0">${c.txt}</span></div>`).join('')}</div></div>`;
+}
+
+/* ─── INSIGHTS-TAB RENDERING ─── */
+function renderInsights(){
+  const rc=$('#readinessCard');if(!rc)return;
+  const rd=readinessScore();
+  rc.innerHTML=rd?readinessHTML(rd):`<h2 style="margin-top:0">⚡ Readiness</h2>
+    <p class="sub" style="margin:0">Trage Schlaf, Ruhepuls (und optional HRV) in der Biometrie ein – nach ~5 Tagen berechnet <span class="notranslate" translate="no">Evidence Fit</span> hier deinen täglichen Readiness-Score.</p>`;
+  const t=computeTDEE();
+  $('#tdeeCard').innerHTML=t?`<h2 style="margin-top:0">🔥 Dein echter TDEE</h2>
+    <div class="row" style="gap:18px;font-size:13px">
+      <div><b style="font-size:24px">${fmt(t.tdee)}</b><br><span class="sub">kcal Verbrauch/Tag</span></div>
+      <div><b style="font-size:24px">${t.dWw>0?'+':''}${fmt(t.dWw,2)}</b><br><span class="sub">kg/Woche Trend</span></div>
+    </div>
+    <p class="sub" style="margin:10px 0 0">Berechnet aus ${t.days} getrackten Ess-Tagen (Ø ${fmt(t.avgIn)} kcal) und ${t.wDays} Wiegetagen (geglätteter Trend – Tagesschwankungen rausgerechnet).</p>
+    ${prognoseHTML(t)}
+    <div class="row" style="margin-top:12px">
+      <button class="btn sm" onclick="applyAdaptive(computeTDEE())">⚙️ Ziele jetzt nachjustieren</button>
+      <label class="row" style="margin:0;text-transform:none;letter-spacing:0;font-size:12.5px;cursor:pointer">
+        <input type="checkbox" style="width:16px" ${S.prefs.adaptive?'checked':''} onchange="S.prefs.adaptive=this.checked;save();toast(this.checked?'Adaptive Ziele aktiv – wöchentliche Anpassung ✓':'Adaptive Ziele aus')"> wöchentlich automatisch</label>
+    </div>`
+    :`<h2 style="margin-top:0">🔥 Dein echter TDEE</h2>
+    <p class="sub" style="margin:0">Wie MacroFactor: <span class="notranslate" translate="no">Evidence Fit</span> errechnet deinen tatsächlichen Kalorienverbrauch aus Gewichtstrend + getrackter Zufuhr und justiert deine Ziele wöchentlich nach.<br><br>
+    Dafür fehlen noch Daten: <b>≥8 Wiegetage</b> und <b>≥10 getrackte Ess-Tage</b> innerhalb von 28 Tagen. Wiege dich am besten täglich morgens.</p>`;
+  const cs=computeCorrelations();
+  $('#corrBox').innerHTML=cs.length?cs.map(c=>`<div class="card">
+    <div class="row" style="justify-content:space-between"><b>${c.icon} ${esc(c.titel)}</b><span class="badge crowd">n=${c.n}</span></div>
+    <p class="sub" style="margin:8px 0 0">${esc(c.text)}</p></div>`).join('')
+    :`<div class="card" style="grid-column:1/-1"><p class="sub" style="margin:0">🔍 Noch keine belastbaren Zusammenhänge gefunden. Die Engine braucht überlappende Daten: tracke <b>parallel</b> Schlaf/Ruhepuls (Biometrie), Essen und Training – je mehr Tage, desto mehr Verbindungen tauchen hier auf. Beispiele: „An Tagen mit &lt;6,5 h Schlaf ist deine Tonnage 12 % niedriger" · „Deine PR-Tage folgen auf Tage mit &gt;2 g/kg Protein".</p></div>`;
+  const ai=S.insightsAi;
+  $('#insightAiBox').innerHTML=ai?`<div class="card" style="border-left:4px solid var(--acc)">
+    <h2 style="margin-top:0">🤖 KI-Einordnung <span class="sub" style="font-size:12px">(${esc(ai.date)})</span></h2>
+    <p class="sub">${esc(ai.analyse||'')}</p>
+    ${(ai.bewertungen||[]).map(b=>`<div class="item"><div class="t"><b>${esc(b.korrelation)} <span class="badge ${b.einordnung==='kausal plausibel'?'verifiziert':b.einordnung==='unsicher'?'crowd':'geschaetzt'}">${esc(b.einordnung)}</span></b><span>${esc(b.erklaerung)}</span></div></div>`).join('')}
+    ${(ai.empfehlungen||[]).map(e=>`<div class="item"><div class="t"><b>✅ ${esc(e.titel)}</b><span>${esc(e.text)}</span></div></div>`).join('')}</div>`:'';
+}
+
+/* ─── PROAKTIVER COACH: 1× täglich eine Erkenntnis ─── */
+function renderDailyInsightCard(){
+  const el=$('#insightCard');if(!el)return;
+  const di=S.dailyInsight;
+  if(!di||di.date!==todayStr()){el.style.display='none';return;}
+  el.style.display='block';
+  el.innerHTML=`<div class="row" style="justify-content:space-between"><h2 style="margin:0">💡 Coach-Erkenntnis des Tages</h2>
+    <span class="badge ${di.prioritaet==='hoch'?'geschaetzt':'crowd'}">${esc(di.prioritaet||'info')}</span></div>
+    <b style="display:block;margin-top:10px">${esc(di.titel||'')}</b>
+    <p class="sub" style="margin:6px 0 12px">${esc(di.text||'')}</p>
+    <button class="btn sm ghost" onclick="openCoachChat()">🤖 Mit dem Coach besprechen</button>`;
+}
+async function fetchDailyInsight(){
+  if(S.dailyInsight?.date===todayStr())return;
+  const tracked=Object.keys(S.meals||{}).filter(d=>(S.meals[d]||[]).length).length;
+  if(tracked<4)return; // zu wenig Daten für sinnvolle Erkenntnisse
+  try{
+    const res=await aiSilent('daily_insight',{context:{
+      letzte_tage:dayTable(7),ziele:S.targets,profil:S.profile,
+      korrelationen:computeCorrelations().map(c=>c.text),
+      readiness:readinessScore()?.score??null}});
+    S.dailyInsight={date:todayStr(),...res};save();renderDailyInsightCard();
+  }catch{}
+}
+
+/* ─── FASTEN-TIMER ─── */
+function renderFasting(){
+  const el=$('#fastCard');if(!el)return;
+  const f=S.fasting;
+  if(!f?.start){el.innerHTML=`<div class="row" style="justify-content:space-between"><b>⏳ Fasten-Timer</b>
+    <button class="btn sm ghost" onclick="startFasting()">▶ Fasten starten</button></div>`;return;}
+  const h=(Date.now()-f.start)/36e5;
+  const stage=h>=24?'24 h+ · verlängertes Fasten – auf den Körper hören':h>=18?'18 h · tiefe Fastenphase':
+    h>=16?'16 h · 16:8 geschafft ✓':h>=12?'12 h · Fettstoffwechsel läuft hoch':'Aufwärmphase – Glykogenspeicher werden geleert';
+  el.innerHTML=`<div class="row" style="justify-content:space-between">
+    <b>⏳ Fasten: ${Math.floor(h)} h ${String(Math.floor(h%1*60)).padStart(2,'0')} min</b>
+    <button class="btn sm" onclick="stopFasting()">■ Beenden</button></div>
+    <div class="bar" style="margin:10px 0 6px"><i style="width:${Math.min(100,h/16*100)}%"></i></div>
+    <span class="sub" style="margin:0">${stage} · Ziel 16 h</span>`;
+}
+function startFasting(){S.fasting={start:Date.now()};save();renderFasting();}
+function stopFasting(){const h=(Date.now()-S.fasting.start)/36e5;S.fasting=null;save();renderFasting();toast(`Fasten beendet – ${fmt(h,1)} h ✓`);}
+setInterval(()=>{if(S.fasting?.start)renderFasting();},60000);
+
+/* ─── ALKOHOL-TRACKING (fließt in Korrelationen & Readiness ein) ─── */
+function addAlcohol(typ){
+  const d=nutriDate();S.alcohol=S.alcohol||{};S.alcohol[d]=(S.alcohol[d]||0)+1;
+  const map={bier:['Bier 0,5 l',500,215,1.7,17.5,0],wein:['Wein 0,2 l',200,165,0.2,5.2,0],shot:['Schnaps 4 cl',40,90,0,0,0]};
+  const [name,g,k,p,c,f]=map[typ];
+  addMeal({items:[{name,menge_g:g,kalorien:k,protein_g:p,kohlenhydrate_g:c,fett_g:f,quelle:'crowd',mikros:{},aminos:{}}],
+    gesamt:{kalorien:k,protein_g:p,kohlenhydrate_g:c,fett_g:f}},'Alkohol');
+}
+const _rw9=renderWater;renderWater=function(){_rw9();
+  const el=$('#waterCard');if(!el)return;
+  const d=nutriDate(),n=(S.alcohol||{})[d]||0;
+  el.insertAdjacentHTML('beforeend',`<div class="row" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
+    <b style="font-size:13px">🍺 Alkohol: ${n} Drink${n===1?'':'s'}</b>
+    <button class="btn sm ghost" onclick="addAlcohol('bier')">＋ Bier</button>
+    <button class="btn sm ghost" onclick="addAlcohol('wein')">＋ Wein</button>
+    <button class="btn sm ghost" onclick="addAlcohol('shot')">＋ Shot</button></div>`);
+};
+
+/* ─── RESTAURANT-MODUS ─── */
+function openRestaurantMeal(){
+  modal(`<div class="mhead"><h3>🍽️ Auswärts essen</h3><button class="x" onclick="closeModal()">✕</button></div>
+  <p class="sub">Beschreibe, was du im Restaurant/Imbiss gegessen hast – die KI schätzt Gastro-Portionen bewusst großzügig (verstecktes Öl, Butter, Saucen).</p>
+  <textarea id="restText" rows="3" placeholder='z. B. "Döner mit allem + Ayran" oder "Pizza Salami im Restaurant, 3/4 gegessen"'></textarea>
+  <div class="row" style="margin-top:14px"><button class="btn" onclick="submitRestaurant()">Analysieren</button></div>`);
+}
+async function submitRestaurant(){
+  const t=$('#restText').value.trim();if(!t)return;closeModal();
+  const res=await aiCall('food_text',{text:t,context:{modus:'restaurant'}},'Restaurant-Portion wird geschätzt…');
+  confirmMeal(res,'Auswärts');
+}
+
+/* ─── OPEN FOOD FACTS ALS GROUND TRUTH (verifizierte Werte pro erkanntem Item) ─── */
+async function offSearch(idx){
+  const i=window._pendingMeal.items[idx];
+  loading(true,'Open Food Facts wird durchsucht…');
+  try{
+    let ps=[];try{ps=await offTextSearch(i.name);}catch{toast('Datenbank nicht erreichbar – bearbeite die Werte manuell (✎)','err');return;}
+    if(!ps.length){toast('Nichts Passendes gefunden – bearbeite die Werte manuell (✎)','err');return;}
+    window._offPick={idx,ps};
+    modal(`<div class="mhead"><h3>🔎 Verifizierte Werte für „${esc(i.name)}"</h3><button class="x" onclick="renderPendingMeal()">✕</button></div>
+    <p class="sub">Open Food Facts (Etikettwerte als Ground Truth) – wähle das passende Produkt:</p>
+    ${ps.map((p,j)=>{const n=p.nutriments;return `<div class="item"><div class="t">
+      <b>${esc(p.product_name_de||p.product_name||'Produkt')}</b>
+      <span>${esc((p.brands||'').split(',')[0])} · pro 100 g: ${fmt(n['energy-kcal_100g'])} kcal · P ${fmt(n.proteins_100g,1)} · C ${fmt(n.carbohydrates_100g,1)} · F ${fmt(n.fat_100g,1)}</span></div>
+      <button class="btn sm" onclick="applyOff(${j})">✓</button></div>`;}).join('')}
+    <div class="row" style="margin-top:12px"><button class="btn ghost sm" onclick="renderPendingMeal()">← Zurück</button></div>`);
+  }catch(e){toast('Open Food Facts nicht erreichbar','err');}
+  finally{loading(false);}
+}
+function applyOff(j){
+  const {idx,ps}=window._offPick,p=ps[j],n=p.nutriments,i=window._pendingMeal.items[idx];
+  const f=(+i.menge_g||100)/100;
+  i.name=(p.product_name_de||p.product_name||i.name)+(p.brands?' ('+p.brands.split(',')[0].trim()+')':'');
+  i.kalorien=(n['energy-kcal_100g']||0)*f;i.protein_g=(n.proteins_100g||0)*f;
+  i.kohlenhydrate_g=(n.carbohydrates_100g||0)*f;i.fett_g=(n.fat_100g||0)*f;
+  i.zucker_g=(n.sugars_100g||0)*f;i.ballaststoffe_g=(n.fiber_100g||0)*f;
+  i.quelle='verifiziert';i.mikros=offMicros(n,f);
+  renderPendingMeal();toast('✓ Verifizierte Werte übernommen');
+}
+
+/* ─── VOLUMEN-LANDMARKEN (MEV/MRV nach RP-Methodik) ─── */
+const VOLZ={Brust:[8,20],'Rücken':[10,25],Schultern:[8,26],Bizeps:[8,26],Trizeps:[6,18],Beine:[8,20],Core:[4,16]};
+function renderVolume(){
+  const el=$('#volumeBox');if(!el)return;
+  const week=S.logs.filter(l=>Date.now()-new Date(l.date)<7*864e5);
+  const sets={};week.forEach(l=>l.sets.forEach(s=>{sets[s.muskel]=(sets[s.muskel]||0)+1;}));
+  el.innerHTML=Object.entries(VOLZ).map(([m,[mev,mrv]])=>{
+    const n=sets[m]||0;
+    const [txt,col]=n===0?['kein Training','var(--mut)']:n<mev?['unter MEV – zu wenig Wachstumsreiz','var(--err)']:
+      n<=mrv?['im produktiven Bereich ✓','var(--acc2)']:['über MRV – Erholung gefährdet','var(--warn)'];
+    return `<div style="margin-bottom:12px">
+      <div class="row" style="justify-content:space-between;font-size:13px"><b>${m}</b>
+        <span style="color:${col};font-size:12px;font-weight:600">${n} Sätze · ${txt}</span></div>
+      <div class="bar" style="position:relative"><i style="width:${Math.min(100,n/mrv*100)}%;background:${col}"></i>
+        <span style="position:absolute;left:${mev/mrv*100}%;top:-2px;bottom:-2px;width:2px;background:var(--txt);opacity:.35"></span></div>
+      <span class="sub" style="font-size:10.5px">MEV ${mev} · MRV ${mrv}</span></div>`;
+  }).join('')+`<p class="sub" style="margin:6px 0 0;font-size:11.5px">MEV = Mindestvolumen für Wachstum, MRV = maximal erholbares Volumen (RP-Methodik, Dr. Mike Israetel). Zählung: abgehakte Sätze der letzten 7 Tage.</p>`;
+}
+/* ─── DELOAD-EMPFEHLUNG ─── */
+function renderDeload(){
+  const el=$('#deloadBox');if(!el)return;
+  const wk=i=>S.logs.filter(l=>{const dd=(Date.now()-new Date(l.date))/864e5;return dd>=i*7&&dd<(i+1)*7;});
+  const t=[0,1,2].map(i=>wk(i).reduce((a,l)=>a+l.tonnage,0));
+  const rpes=S.logs.filter(l=>(Date.now()-new Date(l.date))/864e5<21).flatMap(l=>l.sets.map(s=>+s.rpe).filter(Boolean));
+  const stag=t.every(x=>x>0)&&t[0]<=t[1]*1.03&&t[1]<=t[2]*1.03;
+  el.innerHTML=(stag&&rpes.length>=10&&avg(rpes)>=8.2)?
+    `<div class="card" style="border-left:4px solid var(--warn);margin-bottom:16px">
+      <b>🔄 Deload empfohlen</b>
+      <p class="sub" style="margin:6px 0 0">Deine Tonnage stagniert seit 3 Wochen (${[...t].reverse().map(x=>fmt(x)).join(' → ')} kg) bei dauerhaft hohem RPE (Ø ${fmt(avg(rpes),1)}). Fahre eine Woche ~50 % Volumen bei gleicher Intensität – danach geht die Kurve erfahrungsgemäß wieder nach oben.</p></div>`:'';
+}
+
+/* ─── PLATTENRECHNER + AUFWÄRMSÄTZE ─── */
+function openPlateCalc(){
+  modal(`<div class="mhead"><h3>🏋️ Platten- & Aufwärmrechner</h3><button class="x" onclick="closeModal()">✕</button></div>
+  <div class="grid g2" style="gap:10px">
+    <div><label>Arbeitsgewicht kg</label><input type="number" step="0.5" id="pcTarget" value="${window._pcLast||100}" oninput="renderPlates()"></div>
+    <div><label>Stange kg</label><select id="pcBar" onchange="renderPlates()"><option>20</option><option>15</option><option>10</option><option>7.5</option></select></div>
+  </div><div id="pcOut" style="margin-top:14px"></div>`);
+  renderPlates();
+}
+function renderPlates(){
+  const target=+$('#pcTarget').value||0,bar=+$('#pcBar').value||20;
+  window._pcLast=target;
+  let per=(target-bar)/2;const plates=[];
+  [25,20,15,10,5,2.5,1.25].forEach(p=>{while(per>=p-1e-9){plates.push(p);per-=p;}});
+  const rest=per>0.01?per:0;
+  $('#pcOut').innerHTML=(target<=bar?'<p class="sub">Arbeitsgewicht ≤ Stange.</p>':
+    `<b style="font-size:14px">Pro Seite auflegen:</b>
+    <div class="row" style="margin:8px 0">${plates.map(p=>`<span class="chip">${fmt(p,p%1?2:0)} kg</span>`).join('')||'<span class="sub">nur die Stange</span>'}</div>
+    ${rest?`<p class="sub">⚠️ ${fmt(rest,2)} kg pro Seite nicht mit Standard-Platten abbildbar – nächstes exaktes Gewicht: ${fmt(bar+2*plates.reduce((a,b)=>a+b,0),1)} kg</p>`:''}`)
+    +`<b style="font-size:14px;display:block;margin-top:14px">Aufwärm-Rampe:</b>
+    <table style="margin-top:6px"><tr><th>Satz</th><th>Gewicht</th><th>Wdh</th></tr>
+    <tr><td>Leer</td><td>${fmt(bar)} kg</td><td>10</td></tr>
+    ${[[.4,8],[.6,5],[.8,3]].map(([p,r])=>`<tr><td>${p*100} %</td><td>${fmt(Math.round(target*p/2.5)*2.5,1)} kg</td><td>${r}</td></tr>`).join('')}
+    <tr><td><b>Arbeit</b></td><td><b>${fmt(target,1)} kg</b></td><td></td></tr></table>`;
+}
+function formCheck(n){window.open('https://www.youtube.com/results?search_query='+encodeURIComponent(n+' Übung richtige Ausführung Technik'),'_blank');}
+
+/* ─── PROGRAMM-VORLAGEN ─── */
+const TPL=[
+ {name:'Push (PPL)',desc:'Brust · Schultern · Trizeps',ex:[['Bankdrücken','Brust','reps',4,8,60,150],['Schrägbank-Drücken KH','Brust','reps',3,10,22,120],['Schulterdrücken','Schultern','reps',3,10,40,120],['Seitheben','Schultern','reps',3,15,10,90],['Trizepsdrücken Kabel','Trizeps','reps',3,12,25,90]]},
+ {name:'Pull (PPL)',desc:'Rücken · Bizeps',ex:[['Kreuzheben','Rücken','reps',3,5,100,180],['Klimmzüge','Rücken','reps',4,8,0,150,'bw'],['Langhantel-Rudern','Rücken','reps',3,10,60,120],['Face Pulls','Schultern','reps',3,15,15,90],['Langhantel-Curls','Bizeps','reps',3,12,25,90]]},
+ {name:'Legs (PPL)',desc:'Beine · Core',ex:[['Kniebeugen','Beine','reps',4,6,80,180],['Rumänisches Kreuzheben','Beine','reps',3,10,70,150],['Beinpresse','Beine','reps',3,12,120,120],['Wadenheben','Beine','reps',4,15,60,60],['Plank','Core','hold',3,60,0,60]]},
+ {name:'Ganzkörper A',desc:'3×/Woche, ideal für Einsteiger',ex:[['Kniebeugen','Beine','reps',3,8,60,150],['Bankdrücken','Brust','reps',3,8,50,150],['Langhantel-Rudern','Rücken','reps',3,10,50,120],['Schulterdrücken','Schultern','reps',2,10,30,120],['Plank','Core','hold',3,45,0,60]]},
+ {name:'Oberkörper (UL)',desc:'Upper/Lower Split – Tag 1',ex:[['Bankdrücken','Brust','reps',4,6,70,150],['Klimmzüge','Rücken','reps',4,8,0,150,'bw'],['Schulterdrücken','Schultern','reps',3,10,40,120],['Kabelrudern','Rücken','reps',3,12,50,90],['Bizeps-Curls','Bizeps','reps',2,12,14,60],['Trizepsdrücken','Trizeps','reps',2,12,25,60]]},
+ {name:'Unterkörper (UL)',desc:'Upper/Lower Split – Tag 2',ex:[['Kniebeugen','Beine','reps',4,6,80,180],['Rumänisches Kreuzheben','Beine','reps',3,8,70,150],['Ausfallschritte KH','Beine','reps',3,10,16,120],['Wadenheben','Beine','reps',4,15,60,60],['Hanging Leg Raises','Core','reps',3,12,0,90,'bw']]}];
+function openTemplates(){
+  modal(`<div class="mhead"><h3>📚 Programm-Vorlagen</h3><button class="x" onclick="closeModal()">✕</button></div>
+  <p class="sub">Bewährte Splits als Startpunkt – Gewichte nach dem Hinzufügen an dein Level anpassen (✎).</p>
+  ${TPL.map((t,i)=>`<div class="item"><div class="t"><b>${t.name}</b><span>${t.desc} · ${t.ex.length} Übungen</span></div>
+    <button class="btn sm" onclick="addTemplate(${i})">＋</button></div>`).join('')}
+  <div class="row" style="margin-top:12px"><button class="btn ghost sm" onclick="[0,1,2].forEach(i=>addTemplate(i,1));closeModal();toast('PPL-Programm (3 Pläne) hinzugefügt ✓')">Komplettes PPL übernehmen</button></div>`);
+}
+function addTemplate(i,silent){
+  const t=TPL[i];
+  S.plans.push({id:uid(),name:t.name,exercises:t.ex.map(e=>({id:uid(),name:e[0],muskel:e[1],typ:e[2],saetze:e[3],wdh:e[4],gewicht:e[5],pause:e[6],gruppe:'',bw:e[7]==='bw'}))});
+  save();renderTraining();if(!silent)toast(`„${t.name}" hinzugefügt ✓`);
+}
+
+/* ─── KÖRPERMASSE + PROGRESS-FOTOS ─── */
+const MEAS=[['brust','Brust'],['taille','Taille'],['huefte','Hüfte'],['arm','Arm (angespannt)'],['oberschenkel','Oberschenkel']];
+function renderMeasure(){
+  const el=$('#measureCard');if(!el)return;
+  const hist=[...(S.measurements||[])].sort((a,b)=>a.date<b.date?-1:1);
+  const last=hist[hist.length-1]||{},prev=hist[hist.length-2]||{};
+  const delta=k=>last[k]&&prev[k]?` <span style="font-size:10.5px;color:${last[k]>prev[k]?'var(--acc2)':'var(--err)'}">${last[k]>prev[k]?'+':''}${fmt(last[k]-prev[k],1)}</span>`:'';
+  el.innerHTML=`<h2 style="margin-top:0">📏 Körpermaße & Progress</h2>
+  <div class="grid g3" style="gap:8px">
+    ${MEAS.map(([k,n])=>`<div><label style="margin-top:4px">${n} cm${delta(k)}</label><input type="number" step="0.5" id="ms_${k}" value="${last.date===todayStr()?(last[k]||''):''}" placeholder="${last[k]||'–'}"></div>`).join('')}
+  </div>
+  <div class="row" style="margin-top:12px">
+    <button class="btn sm" onclick="saveMeasure()">💾 Maße speichern</button>
+    <button class="btn sm ghost" onclick="$('#ppInput').click()">📸 Progress-Foto</button>
+    ${(S.progressPics||[]).length?`<button class="btn sm ghost" onclick="openGallery()">🖼️ Galerie (${S.progressPics.length})</button>`:''}
+  </div>
+  <input type="file" id="ppInput" accept="image/*" hidden onchange="progressPhoto(this)">
+  ${hist.length>1?`<p class="sub" style="margin:10px 0 0;font-size:11.5px">Δ = Veränderung zur letzten Messung (${esc(prev.date||'')}) · Tipp: immer morgens, nüchtern, an derselben Stelle messen.</p>`:''}`;
+}
+function saveMeasure(){
+  const e={date:todayStr()};let any=false;
+  MEAS.forEach(([k])=>{const v=+$('#ms_'+k).value;if(v){e[k]=v;any=true;}});
+  if(!any)return toast('Mindestens ein Maß eintragen','err');
+  S.measurements=(S.measurements||[]).filter(m=>m.date!==e.date);S.measurements.push(e);
+  save();renderMeasure();toast('Maße gespeichert ✓');
+}
+async function progressPhoto(inp){
+  const f=inp.files[0];inp.value='';if(!f)return;
+  const img=await createImageBitmap(f);
+  const sc=Math.min(1,340/Math.max(img.width,img.height));
+  const c=document.createElement('canvas');c.width=img.width*sc;c.height=img.height*sc;
+  c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+  S.progressPics=(S.progressPics||[]);
+  S.progressPics.push({date:todayStr(),thumb:c.toDataURL('image/jpeg',.55)});
+  while(S.progressPics.length>20)S.progressPics.shift();
+  save();renderMeasure();toast('📸 Progress-Foto gespeichert (Tipp: gleiche Pose, gleiches Licht)');
+}
+function delProgressPic(i){const p=(S.progressPics||[])[i];if(!p)return;
+  S.progressPics.splice(i,1);tombstone('pic:'+p.date+(p.thumb||'').slice(-24));openGallery();renderMeasure();}
+function openGallery(){
+  modal(`<div class="mhead"><h3>🖼️ Progress-Galerie</h3><button class="x" onclick="closeModal()">✕</button></div>
+  <p class="sub">Vergleiche über die Zeit – neuestes Foto zuletzt (max. 20 gespeichert).</p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px">
+  ${(S.progressPics||[]).map((p,i)=>`<div style="position:relative"><img src="${p.thumb}" style="width:100%;border-radius:12px;display:block">
+    <span class="badge crowd" style="position:absolute;top:6px;left:6px">${p.date}</span>
+    <button class="x" style="position:absolute;top:2px;right:2px;background:var(--overlay);border-radius:8px" onclick="delProgressPic(${i})">✕</button></div>`).join('')}</div>`);
+}
+
+/* ─── ZYKLUS-TRACKING (nur bei Profil-Geschlecht „weiblich") ─── */
+function renderCycle(){
+  const el=$('#cycleCard');if(!el)return;
+  if(S.profile.geschlecht!=='w'){el.style.display='none';return;}
+  el.style.display='block';
+  const c=S.cycle=S.cycle||{starts:[]};
+  const starts=(c.starts||[]).sort();
+  const last=starts[starts.length-1];
+  let body='';
+  if(last){
+    const diffs=starts.slice(1).map((s,i)=>(new Date(s)-new Date(starts[i]))/864e5).filter(d=>d>15&&d<60);
+    const len=diffs.length?Math.round(avg(diffs)):28;
+    const day=Math.floor((Date.now()-new Date(last))/864e5)%len+1;
+    const [phase,hint]=day<=5?['🩸 Menstruation','Leistung kann gedämpft sein – Volumen nach Gefühl reduzieren, eisenreiche Ernährung.']:
+      day<=13?['🌱 Follikelphase','Östrogen steigt – beste Phase für PRs und hohe Intensität!']:
+      day<=15?['🥚 Ovulation','Kraft-Peak möglich, aber erhöhtes Verletzungsrisiko der Bänder – sauber aufwärmen.']:
+      ['🌙 Lutealphase','Mehr Hunger & Wasserretention sind normal (Gewicht +1–2 kg ≠ Fett). Etwas mehr Carbs helfen.'];
+    body=`<b>Tag ${day} / ~${len}</b> · ${phase}<p class="sub" style="margin:8px 0 0">${hint}</p>`;
+  }else body='<p class="sub" style="margin:0">Trage den ersten Tag deiner Periode ein – <span class="notranslate" translate="no">Evidence Fit</span> zeigt dir dann Zyklusphase + Auswirkung auf Kraft, Gewicht und Ernährungsbedarf.</p>';
+  el.innerHTML=`<h2 style="margin-top:0">🌸 Zyklus</h2>${body}
+  <button class="btn sm ghost" style="margin-top:12px" onclick="S.cycle.starts=[...new Set([...(S.cycle.starts||[]),todayStr()])];save();renderCycle();toast('Zyklusstart erfasst ✓')">🩸 Periode heute gestartet</button>`;
+}
+
+/* ─── GAMIFICATION: ACHIEVEMENTS + PR-KONFETTI ─── */
+function renderAchievements(){
+  const el=$('#achieveCard');if(!el)return;
+  let streak=0;for(let i=0;i<400;i++){const d=dstr(i);
+    if((S.meals[d]||[]).length||S.logs.some(l=>l.date===d))streak++;else if(i>0)break;}
+  const w=S.logs.length,m=Object.values(S.meals||{}).flat().length,p=prDays().size;
+  const A=[['🔥','7-Tage-Streak',streak>=7,streak+'/7'],['⚡','30-Tage-Streak',streak>=30,streak+'/30'],
+    ['🏋️','10 Workouts',w>=10,w+'/10'],['🦾','50 Workouts',w>=50,w+'/50'],['💯','100 Workouts',w>=100,w+'/100'],
+    ['🏆','Erster PR',p>=1,p+'/1'],['👑','10 PR-Tage',p>=10,p+'/10'],
+    ['🍽️','100 Mahlzeiten',m>=100,m+'/100'],['📸','Progress-Foto',(S.progressPics||[]).length>=1,'']];
+  el.innerHTML=`<h2 style="margin-top:0">🏅 Achievements</h2><div class="row">`+
+    A.map(([ic,t,ok,pr])=>`<span class="chip" title="${pr}" style="${ok?'':'opacity:.35;filter:grayscale(1)'}">${ic} ${t}</span>`).join('')+`</div>`;
+}
+function confetti(){
+  const c=document.createElement('canvas');
+  c.style.cssText='position:fixed;inset:0;z-index:600;pointer-events:none';
+  c.width=innerWidth;c.height=innerHeight;document.body.appendChild(c);
+  const x=c.getContext('2d');
+  const P=Array.from({length:150},()=>({x:Math.random()*c.width,y:-30-Math.random()*c.height*.5,
+    v:2.5+Math.random()*4.5,r:4+Math.random()*6,a:Math.random()*6.3,
+    col:['#d15525','#3f8f6b','#d4af37','#7d5ba6','#e8853f'][Math.random()*5|0]}));
+  let t=0;(function f(){t++;x.clearRect(0,0,c.width,c.height);
+    P.forEach(p=>{p.y+=p.v;p.a+=.12;x.save();x.translate(p.x+Math.sin(p.a)*10,p.y);x.rotate(p.a);
+      x.fillStyle=p.col;x.fillRect(-p.r/2,-p.r/2,p.r,p.r*.6);x.restore();});
+    if(t<140)requestAnimationFrame(f);else c.remove();})();
+}
+const _fin9=finishLive;finishLive=function(){
+  const prev={};S.logs.forEach(l=>l.sets.forEach(s=>{if(s.typ==='reps'&&totalWeight(s)>0&&s.reps){
+    const e=epley(totalWeight(s),s.reps);if(e>(prev[s.uebung]||0))prev[s.uebung]=e;}}));
+  const n0=S.logs.length;
+  _fin9();
+  if(S.logs.length>n0){
+    const prsHit=new Set();
+    S.logs[0].sets.forEach(s=>{if(s.typ==='reps'&&totalWeight(s)>0&&s.reps){
+      const e=epley(totalWeight(s),s.reps);
+      if(prev[s.uebung]&&e>prev[s.uebung]*1.001)prsHit.add(s.uebung+' → '+fmt(e,1)+' kg 1RM');}});
+    if(prsHit.size){confetti();setTimeout(()=>toast('🎉 NEUER PR! '+[...prsHit].join(' · ')),500);}
+  }
+};
+
+/* ─── ONBOARDING FÜR NEUE NUTZER ─── */
+function maybeOnboard(){
+  if(S.onboarded)return;
+  const fresh=!S.profile.name&&!S.logs.length&&!Object.keys(S.meals||{}).length&&!S.plans.length;
+  if(!fresh){S.onboarded=1;persist();return;}
+  modal(`<div class="mhead"><h3>👋 Willkommen bei <span class="notranslate" translate="no">Evidence Fit</span>!</h3></div>
+  <p class="sub">Ein paar Angaben, dann berechnen wir deine Tagesziele automatisch – alles später im Setup änderbar.</p>
+  <label>Wie heißt du?</label><input id="ob_name" placeholder="Vorname">
+  <div class="grid g3" style="gap:10px">
+    <div><label>Gewicht kg</label><input type="number" step="0.1" id="ob_gewicht" value="80"></div>
+    <div><label>Größe cm</label><input type="number" id="ob_groesse" value="180"></div>
+    <div><label>Alter</label><input type="number" id="ob_alter" value="25"></div>
+    <div><label>Geschlecht</label><select id="ob_geschlecht"><option value="m">Männlich</option><option value="w">Weiblich</option></select></div>
+    <div><label>Ziel</label><select id="ob_ziel"><option>Muskelaufbau</option><option>Fettabbau</option><option>Kraft</option><option>Skills / Calisthenics</option><option>Erhaltung</option></select></div>
+    <div><label>Zielgewicht kg</label><input type="number" step="0.1" id="ob_zielgewicht" placeholder="optional"></div>
+  </div>
+  <div class="row" style="margin-top:16px"><button class="btn" style="flex:1;justify-content:center" onclick="finishOnboard()">🚀 Los geht's</button></div>`);
+}
+function finishOnboard(){
+  const g=+$('#ob_gewicht').value||80,h=+$('#ob_groesse').value||180,a=+$('#ob_alter').value||25,
+    sex=$('#ob_geschlecht').value,ziel=$('#ob_ziel').value;
+  S.profile={name:$('#ob_name').value||'',gewicht:g,groesse:h,kfa:S.profile.kfa||15,alter:a,geschlecht:sex,ziel,
+    zielgewicht:+$('#ob_zielgewicht').value||null};
+  const bmr=10*g+6.25*h-5*a+(sex==='w'?-161:5);
+  const kcal=Math.round((bmr*1.5+zielDelta(ziel))/10)*10;
+  const prot=Math.round(g*(ziel==='Fettabbau'?2.4:2)),fett=Math.round(g*(ziel==='Fettabbau'?0.8:1));
+  S.targets={kalorien:kcal,protein:prot,fett,kohlenhydrate:Math.max(50,Math.round((kcal-prot*4-fett*9)/4))};
+  S.onboarded=1;save();closeModal();rerenderAll();
+  toast(`Willkommen${S.profile.name?' '+S.profile.name:''}! Tagesziel: ${fmt(kcal)} kcal / ${prot} g Protein ✓`);
+}
+const _sg9=showGate;showGate=function(on){_sg9(on);if(!on)setTimeout(maybeOnboard,700);};
+
+/* ─── INTEGRATION: Wraps & Init ─── */
+const _st9=showTab;showTab=function(id){_st9(id);if(id==='insights')renderInsights();};
+const _rd9=renderDash;renderDash=function(){_rd9();
+  const b=S.biometrics.find(x=>x.date===todayStr())||{};
+  const h=$('#bioHrv');if(h)h.value=b.hrv||'';
+  const rd=readinessScore(),rc=$('#readyCard');
+  if(rc){rc.style.display=rd?'block':'none';if(rd)rc.innerHTML=readinessHTML(rd,true);}
+  renderMeasure();renderAchievements();renderCycle();renderDailyInsightCard();
+};
+const _sb9=saveBio;saveBio=function(){_sb9();
+  const e=S.biometrics.find(b=>b.date===todayStr());
+  if(e){e.hrv=+$('#bioHrv').value||null;save();}
+};
+const _rn9=renderNutrition;renderNutrition=function(){_rn9();renderFasting();};
+const _rt9=renderTraining;renderTraining=function(){_rt9();renderVolume();renderDeload();renderSkills();};
+const _rs9=renderSettings;renderSettings=function(){_rs9();
+  const z=$('#setZielGewicht');if(z)z.value=S.profile.zielgewicht||'';};
+const _ss9=saveSettings;saveSettings=function(){_ss9();
+  S.profile.zielgewicht=+$('#setZielGewicht').value||null;save();};
+
+// Adaptive Ziele: 1× pro Woche automatisch nachschärfen (wenn aktiviert & genug Daten)
+if(S.prefs.adaptive&&S._adaptWeek!==isoWeekStr()){
+  const t=computeTDEE();
+  if(t){S._adaptWeek=isoWeekStr();applyAdaptive(t,true);}
+}
+// Proaktive Coach-Erkenntnis (1×/Tag, im Hintergrund ohne Loader)
+setTimeout(()=>fetchDailyInsight().catch(()=>{}),3000);
+// Erst-Render der neuen Bereiche
+renderDash();renderNutrition();renderTraining();renderInsights();
+</script>
+
+<script>
+/* ═══════════════════ ÜBUNGS-COACH: prozedurale Bewegungs-Animationen (Canvas-Strichmännchen, keine externen Assets) ═══════════════════ */
+const L={torso:60,neck:12,head:13,uarm:34,farm:32,thigh:40,shin:40}; // Segmentlängen (Einheiten)
+const rad=d=>d*Math.PI/180, dir=d=>[Math.cos(rad(d)),Math.sin(rad(d))];
+const POSE_DEF={torso:-90,uarm:90,farm:90,thigh:90,shin:90,hipdx:0,hipdy:0};
+const fullPose=p=>Object.assign({},POSE_DEF,p);
+function computeJoints(p){
+  const hip={x:p.hipdx,y:p.hipdy};
+  const td=dir(p.torso);
+  const neck={x:hip.x+L.torso*td[0],y:hip.y+L.torso*td[1]};
+  const headC={x:neck.x+(L.neck+L.head)*td[0],y:neck.y+(L.neck+L.head)*td[1]};
+  const ua=dir(p.uarm),elbow={x:neck.x+L.uarm*ua[0],y:neck.y+L.uarm*ua[1]};
+  const fa=dir(p.farm),hand={x:elbow.x+L.farm*fa[0],y:elbow.y+L.farm*fa[1]};
+  const th=dir(p.thigh),knee={x:hip.x+L.thigh*th[0],y:hip.y+L.thigh*th[1]};
+  const sh=dir(p.shin),foot={x:knee.x+L.shin*sh[0],y:knee.y+L.shin*sh[1]};
+  return {hip,neck,headC,elbow,hand,knee,foot};
+}
+// Bewegungen: a = Start-, b = End-Pose (Winkel in Grad); focus = betonte (farbige) Gliedmaße
+const ANIM={
+  bizeps_curl:{focus:'arm',equip:'dumbbell',speed:.05,a:{uarm:82,farm:90},b:{uarm:80,farm:-30}},
+  trizeps_extension:{focus:'arm',equip:'dumbbell',speed:.05,a:{uarm:-82,farm:-150},b:{uarm:-82,farm:-90}},
+  dips:{focus:'arm',equip:'none',speed:.045,a:{torso:-86,uarm:62,farm:122,thigh:118,shin:150},b:{torso:-90,uarm:88,farm:92,thigh:118,shin:150}},
+  liegestuetz:{focus:'chest',equip:'floor',speed:.045,a:{torso:-14,uarm:58,farm:122,thigh:20,shin:16,hipdy:4},b:{torso:-14,uarm:84,farm:92,thigh:20,shin:16,hipdy:0}},
+  bankdruecken:{focus:'chest',equip:'barbell_hands',bench:true,speed:.05,a:{torso:180,uarm:-56,farm:-118,thigh:60,shin:82},b:{torso:180,uarm:-90,farm:-90,thigh:60,shin:82}},
+  schulterdruecken:{focus:'shoulder',equip:'barbell_hands',speed:.05,a:{uarm:-66,farm:-118},b:{uarm:-88,farm:-90}},
+  seitheben:{focus:'shoulder',equip:'dumbbell',speed:.05,a:{uarm:86,farm:90},b:{uarm:4,farm:8}},
+  klimmzug:{focus:'back',equip:'pullup_bar',speed:.04,a:{uarm:-76,farm:-90,thigh:108,shin:150},b:{uarm:-66,farm:-124,thigh:108,shin:150}},
+  rudern:{focus:'back',equip:'barbell_hands',speed:.05,a:{torso:-42,uarm:98,farm:96,thigh:100,shin:86},b:{torso:-42,uarm:74,farm:26,thigh:100,shin:86}},
+  squat:{focus:'leg',equip:'barbell_shoulders',speed:.04,a:{torso:-80,uarm:48,farm:30,thigh:92,shin:90,hipdy:0},b:{torso:-62,uarm:48,farm:30,thigh:122,shin:50,hipdy:30}},
+  ausfallschritt:{focus:'leg',equip:'dumbbell',speed:.04,a:{torso:-86,uarm:86,farm:90,thigh:84,shin:96,hipdy:0},b:{torso:-84,uarm:86,farm:90,thigh:112,shin:58,hipdy:24}},
+  kreuzheben:{focus:'back',equip:'barbell_hands',speed:.04,a:{torso:-42,uarm:92,farm:92,thigh:118,shin:62,hipdy:22},b:{torso:-88,uarm:90,farm:90,thigh:92,shin:90,hipdy:0}},
+  wadenheben:{focus:'leg',equip:'none',speed:.07,a:{hipdy:0},b:{hipdy:-12}},
+  plank:{focus:'core',equip:'floor',speed:.025,a:{torso:-16,uarm:62,farm:96,thigh:18,shin:16,hipdy:0},b:{torso:-16,uarm:62,farm:96,thigh:18,shin:16,hipdy:3}},
+  crunch:{focus:'core',equip:'floor',speed:.055,a:{torso:-4,uarm:-46,farm:-74,thigh:-42,shin:44,hipdy:0},b:{torso:-32,uarm:-46,farm:-74,thigh:-42,shin:44,hipdy:0}},
+  glute_bridge:{focus:'leg',equip:'floor',speed:.055,a:{torso:202,uarm:24,farm:22,thigh:58,shin:122,hipdy:0},b:{torso:214,uarm:24,farm:22,thigh:44,shin:132,hipdy:-14}},
+  _generic:{focus:'both',equip:'none',speed:.045,a:{uarm:72,farm:82,thigh:92,shin:90},b:{uarm:48,farm:18,thigh:104,shin:78}}
+};
+const SYN={hammer_curl:'bizeps_curl',konzentrations_curl:'bizeps_curl',konzentrationscurl:'bizeps_curl',curls:'bizeps_curl',curl:'bizeps_curl',bizepscurl:'bizeps_curl',
+  trizeps:'trizeps_extension',trizepsdruecken:'trizeps_extension',french_press:'trizeps_extension',kickback:'trizeps_extension',
+  trizeps_dips:'dips',barren_dips:'dips',
+  pushup:'liegestuetz',pushups:'liegestuetz',liegestuetze:'liegestuetz',
+  bench:'bankdruecken',bench_press:'bankdruecken',brustpresse:'bankdruecken',schraegbank:'bankdruecken',schraegbankdruecken:'bankdruecken',
+  ohp:'schulterdruecken',overhead_press:'schulterdruecken',military_press:'schulterdruecken',schulterpresse:'schulterdruecken',arnold_press:'schulterdruecken',
+  lateral_raise:'seitheben',
+  pullup:'klimmzug',pullups:'klimmzug',klimmzuege:'klimmzug',latzug:'klimmzug',lat_pulldown:'klimmzug',
+  row:'rudern',langhantelrudern:'rudern',kabelrudern:'rudern',face_pull:'rudern',
+  kniebeuge:'squat',kniebeugen:'squat',beinpresse:'squat',goblet_squat:'squat',
+  lunge:'ausfallschritt',lunges:'ausfallschritt',ausfallschritte:'ausfallschritt',
+  deadlift:'kreuzheben',rumaenisches_kreuzheben:'kreuzheben',rdl:'kreuzheben',
+  calf_raise:'wadenheben',waden:'wadenheben',
+  planke:'plank',unterarmstuetz:'plank',
+  situp:'crunch',situps:'crunch',crunches:'crunch',beinheben:'crunch',
+  hip_thrust:'glute_bridge',beckenheben:'glute_bridge'};
+function resolveAnim(raw){
+  const deumlaut=s=>s.replace(/ü/g,'ue').replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ß/g,'ss');
+  const k0=(raw||'').toLowerCase().replace(/[^a-zäöüß0-9]+/g,'_').replace(/^_|_$/g,'');
+  const k=deumlaut(k0);
+  if(ANIM[k])return k; if(SYN[k])return SYN[k];
+  for(const key in ANIM)if(key[0]!=='_'&&k.includes(key))return key;
+  for(const s in SYN)if(k.includes(s))return SYN[s];
+  // Muskel-Heuristik als letzter Ausweg – Reihenfolge ist wichtig (spezifisch vor generisch)
+  if(/schulter|shoulder|delt|ueberkopf|overhead/.test(k))return'schulterdruecken';
+  if(/bruecke|bridge|becken|hip_thrust|glute|gesaess/.test(k))return'glute_bridge';
+  if(/ruecken|klimm|latzug|\blat|rudern|zug|pulldown|pullup/.test(k))return'rudern';
+  if(/wade|calf/.test(k))return'wadenheben';
+  if(/bein|leg|squat|knie|quad|ausfall|lunge/.test(k))return'squat';
+  if(/trizep|tricep/.test(k))return'trizeps_extension';
+  if(/bizep|bicep|\barm|curl/.test(k))return'bizeps_curl';
+  if(/brust|chest|drueck|press|liege|bank/.test(k))return'liegestuetz';
+  if(/bauch|core|abs|plank|crunch|situp/.test(k))return'plank';
+  return '_generic';
+}
+// Farb-Palette (Mannequin + Geräte) – funktioniert auf hellem & dunklem Hintergrund
+let EXCOL={};
+function refreshExCol(){const s=getComputedStyle(document.body);
+  const dark=matchMedia('(prefers-color-scheme: dark)').matches;
+  EXCOL={
+    acc:(s.getPropertyValue('--acc')||'#d15525').trim(),
+    mut:(s.getPropertyValue('--mut')||'#8d836e').trim(),
+    bodyL:dark?'#e0c07f':'#dca67e', bodyD:dark?'#8a6d38':'#8c5638',       // Haut/Körper hell→dunkel
+    accL:dark?'#f2d16c':'#ec8f45',  accD:dark?'#9c7a20':'#a83c14',        // betonte Muskulatur
+    metalL:'#e2e6ec', metalM:'#9aa1ac', metalD:'#464b54',                 // Metall (Hantel/Stange)
+    plate:dark?'#22201b':'#242019',                                       // Gewichtsscheiben
+    bottleL:'#a9dcf5', bottleD:'#3f86b0', cap:'#eef2f6',                   // Wasserflasche
+    wood:dark?'#7a6136':'#b58a54', woodD:dark?'#54421f':'#8a6538'         // Holz (Bank/Türrahmen)
+  };}
+refreshExCol();try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',refreshExCol);}catch{}
+// Rounded-Rect-Helfer
+function rr(x,X,Y,W,H,R){R=Math.min(R,Math.abs(W)/2,Math.abs(H)/2);x.beginPath();
+  x.moveTo(X+R,Y);x.arcTo(X+W,Y,X+W,Y+H,R);x.arcTo(X+W,Y+H,X,Y+H,R);x.arcTo(X,Y+H,X,Y,R);x.arcTo(X,Y,X+W,Y,R);x.closePath();}
+
+const animItems=[];
+// equipTxt = die tatsächliche Ausrüstung der Übung → bestimmt Hantel vs. Flasche vs. Türrahmen usw.
+function mountExerciseAnim(cv,key,equipTxt){
+  if(!cv)return;
+  const def=Object.assign({},ANIM[key]||ANIM._generic);
+  const q=(equipTxt||'').toLowerCase();
+  if(def.equip==='pullup_bar'&&/tür|tuer|door|handtuch|tisch/.test(q))def.equip='door_frame';
+  // Handgerät nur bei ohnehin handgehaltenen Übungen umschalten (Nacken-Stange/Klimmzug etc. bleiben unberührt)
+  if(['dumbbell','barbell_hands'].includes(def.equip)){
+    if(/kurzhantel|dumbbell|kettlebell/.test(q))def.equip='dumbbell';
+    else if(/flasche|bottle|wasser/.test(q))def.equip='bottle';
+    else if(/langhantel|sz.?stange/.test(q))def.equip='barbell_hands';
+  }
+  animItems.push({cv,def,phase:Math.random()*6,fit:null,cw:0,ch:0});
+}
+function fitFor(def,cw,ch){
+  const pts=[];[def.a,def.b].forEach(p=>{const j=computeJoints(fullPose(p));for(const k in j)pts.push(j[k]);});
+  let minX=Math.min(...pts.map(p=>p.x))-48,maxX=Math.max(...pts.map(p=>p.x))+56,
+      minY=Math.min(...pts.map(p=>p.y))-44,maxY=Math.max(...pts.map(p=>p.y))+30;
+  const w=maxX-minX,h=maxY-minY,pad=12,s=Math.min((cw-2*pad)/w,(ch-2*pad)/h);
+  return {s,ox:pad+(cw-2*pad-w*s)/2-minX*s,oy:pad+(ch-2*pad-h*s)/2-minY*s};
+}
+function drawExercise(it){
+  const cv=it.cv,dpr=Math.min(devicePixelRatio||1,2),cw=cv.clientWidth||280,ch=cv.clientHeight||150;
+  if(cv.width!==cw*dpr||cv.height!==ch*dpr){cv.width=cw*dpr;cv.height=ch*dpr;it.fit=null;}
+  if(!it.fit||it.cw!==cw){it.fit=fitFor(it.def,cw,ch);it.cw=cw;it.ch=ch;}
+  const x=cv.getContext('2d');x.save();x.scale(dpr,dpr);x.clearRect(0,0,cw,ch);
+  const f=it.fit,S=f.s,T=p=>[p.x*S+f.ox,p.y*S+f.oy];
+  const t=(1-Math.cos(it.phase))/2,def=it.def;
+  const pose={};for(const k in POSE_DEF){const a=def.a[k]??POSE_DEF[k],b=def.b[k]??POSE_DEF[k];pose[k]=a+(b-a)*t;}
+  const J=computeJoints(pose), P=k=>T(J[k]);
+  const hip=P('hip'),neck=P('neck'),head=P('headC'),elbow=P('elbow'),hand=P('hand'),knee=P('knee'),foot=P('foot');
+  // 3D-Schattierung: Gliedmaßen als schattierte Röhren (hell oben → dunkel unten)
+  const tube=(p1,p2,w,cL,cD)=>{const dx=p2[0]-p1[0],dy=p2[1]-p1[1],len=Math.hypot(dx,dy)||1,px=-dy/len,py=dx/len;
+    const mx=(p1[0]+p2[0])/2,my=(p1[1]+p2[1])/2;let a=[mx+px*w/2,my+py*w/2],b=[mx-px*w/2,my-py*w/2];
+    if(a[1]>b[1]){const s=a;a=b;b=s;}const g=x.createLinearGradient(a[0],a[1],b[0],b[1]);
+    g.addColorStop(0,cL);g.addColorStop(1,cD);x.strokeStyle=g;x.lineWidth=w;x.lineCap='round';
+    x.beginPath();x.moveTo(p1[0],p1[1]);x.lineTo(p2[0],p2[1]);x.stroke();};
+  const metalGrad=(cy,r)=>{const g=x.createLinearGradient(0,cy-r,0,cy+r);g.addColorStop(0,EXCOL.metalL);g.addColorStop(.5,EXCOL.metalM);g.addColorStop(1,EXCOL.metalD);return g;};
+  const armAcc=['arm','chest','shoulder','both'].includes(def.focus), legAcc=['leg','both'].includes(def.focus);
+  const aL=armAcc?EXCOL.accL:EXCOL.bodyL, aD=armAcc?EXCOL.accD:EXCOL.bodyD;
+  const lL=legAcc?EXCOL.accL:EXCOL.bodyL, lD=legAcc?EXCOL.accD:EXCOL.bodyD;
+  const uaW=S*9,faW=S*7.5,thW=S*12,caW=S*9.5;
+  const dep=[S*5,-S*2]; const off=(p)=>[p[0]+dep[0],p[1]+dep[1]];
+  // Torso-Perpendikular
+  const tdx=neck[0]-hip[0],tdy=neck[1]-hip[1],tl=Math.hypot(tdx,tdy)||1,tpx=-tdy/tl,tpy=tdx/tl;
+  const shH=S*13,pvH=S*9.5;
+  const nL=[neck[0]+tpx*shH,neck[1]+tpy*shH],nR=[neck[0]-tpx*shH,neck[1]-tpy*shH];
+  const hL=[hip[0]+tpx*pvH,hip[1]+tpy*pvH],hR=[hip[0]-tpx*pvH,hip[1]-tpy*pvH];
+  // Geräte-Zeichner
+  const drawBar=(c)=>{const half=S*44,r=Math.max(2,S*2.4);x.fillStyle=metalGrad(c[1],r);rr(x,c[0]-half,c[1]-r,half*2,r*2,r);x.fill();
+    [-1,1].forEach(s=>{const px=c[0]+s*half*0.84;x.fillStyle=EXCOL.plate;rr(x,px-S*3.2,c[1]-S*10,S*6.4,S*20,S*2.5);x.fill();
+      x.fillStyle=EXCOL.metalD;rr(x,px+s*S*4,c[1]-S*3,S*3,S*6,S*1.2);x.fill();});};
+  const drawDumbbell=(c)=>{x.fillStyle=metalGrad(c[1],S*6);rr(x,c[0]-S*9,c[1]-S*1.8,S*18,S*3.6,S*1.6);x.fill();
+    [-1,1].forEach(s=>{const hx=c[0]+s*S*9;x.fillStyle=metalGrad(c[1],S*7);rr(x,hx-S*4,c[1]-S*7,S*8,S*14,S*2.6);x.fill();});};
+  const drawBottle=(c)=>{const w=S*8,h=S*22;const g=x.createLinearGradient(c[0]-w/2,0,c[0]+w/2,0);
+    g.addColorStop(0,EXCOL.bottleL);g.addColorStop(1,EXCOL.bottleD);x.fillStyle=g;rr(x,c[0]-w/2,c[1]-h*0.42,w,h*0.78,w*0.42);x.fill();
+    x.fillStyle=EXCOL.bottleD;rr(x,c[0]-w*0.22,c[1]-h*0.58,w*0.44,h*0.2,w*0.14);x.fill();
+    x.fillStyle=EXCOL.cap;rr(x,c[0]-w*0.27,c[1]-h*0.72,w*0.54,h*0.16,w*0.1);x.fill();
+    x.fillStyle='rgba(255,255,255,.4)';rr(x,c[0]-w/2+1,c[1]-h*0.08,w-2,h*0.3,2);x.fill();};
+  // Umgebung hinter der Figur
+  const lowY=Math.max(hip[1],knee[1],foot[1],head[1]);
+  if(def.equip==='floor'||def.bench){x.fillStyle=EXCOL.mut;x.globalAlpha=.18;x.beginPath();x.ellipse(cw/2,lowY+S*7,cw*0.42,S*5,0,0,7);x.fill();x.globalAlpha=1;}
+  if(def.equip==='door_frame'){const tk=Math.max(7,S*8);x.fillStyle=EXCOL.wood;
+    x.fillRect(10,4,tk,ch-8);x.fillRect(cw-10-tk,4,tk,ch-8);x.fillRect(10,4,cw-20,tk);
+    x.fillStyle=EXCOL.woodD;x.fillRect(10+tk,4+tk,3,ch-12-tk);x.fillRect(cw-13-tk,4+tk,3,ch-12-tk);}
+  if(def.equip==='pullup_bar'){const by=hand[1]-S*3.5;x.fillStyle=EXCOL.metalD;x.fillRect(18,0,4,by);x.fillRect(cw-22,0,4,by);
+    x.fillStyle=metalGrad(by,S*2.4);rr(x,12,by-S*2.4,cw-24,S*4.8,S*2.4);x.fill();}
+  if(def.equip==='bench'||def.bench){const bx0=Math.min(hip[0],neck[0])-S*8,bx1=Math.max(hip[0],neck[0])+S*20,by=Math.max(hip[1],neck[1])+S*6;
+    const g=x.createLinearGradient(0,by,0,by+S*8);g.addColorStop(0,EXCOL.wood);g.addColorStop(1,EXCOL.woodD);x.fillStyle=g;rr(x,bx0,by,bx1-bx0,S*8,S*2);x.fill();
+    x.fillStyle=EXCOL.woodD;x.fillRect(bx0+S*4,by+S*8,S*3,S*12);x.fillRect(bx1-S*6,by+S*8,S*3,S*12);}
+  if(def.equip==='barbell_shoulders')drawBar(neck); // Stange auf dem Nacken (hinter Kopf/Armen)
+  // Ferne Gliedmaßen (Tiefe) – gedämpft
+  x.globalAlpha=.5;
+  tube(off(hip),off(knee),thW,EXCOL.bodyD,EXCOL.bodyD);tube(off(knee),off(foot),caW,EXCOL.bodyD,EXCOL.bodyD);
+  tube(off(neck),off(elbow),uaW,EXCOL.bodyD,EXCOL.bodyD);tube(off(elbow),off(hand),faW,EXCOL.bodyD,EXCOL.bodyD);
+  x.globalAlpha=1;
+  // Torso (gefülltes, schattiertes Polygon)
+  const tg=x.createLinearGradient(nL[0],Math.min(nL[1],nR[1]),hR[0],Math.max(hL[1],hR[1]));
+  tg.addColorStop(0,EXCOL.bodyL);tg.addColorStop(1,EXCOL.bodyD);x.fillStyle=tg;
+  x.beginPath();x.moveTo(...nL);x.lineTo(...nR);x.lineTo(...hR);x.lineTo(...hL);x.closePath();x.fill();
+  // Nahe Beine & Arme
+  tube(hip,knee,thW,lL,lD);tube(knee,foot,caW,lL,lD);
+  x.fillStyle=lD;x.beginPath();x.ellipse(foot[0],foot[1],S*7,S*3.4,0,0,7);x.fill(); // Fuß
+  tube(neck,elbow,uaW,aL,aD);tube(elbow,hand,faW,aL,aD);
+  // Hals + Kopf (kugelig schattiert)
+  tube(neck,head,S*7,EXCOL.bodyL,EXCOL.bodyD);
+  const hr=S*12,hg=x.createRadialGradient(head[0]-hr*0.35,head[1]-hr*0.4,hr*0.2,head[0],head[1],hr*1.1);
+  hg.addColorStop(0,EXCOL.bodyL);hg.addColorStop(1,EXCOL.bodyD);x.fillStyle=hg;
+  x.beginPath();x.ellipse(head[0],head[1],hr,hr*1.12,0,0,7);x.fill();
+  // Hand-Gerät
+  if(def.equip==='dumbbell')drawDumbbell(hand);
+  else if(def.equip==='bottle')drawBottle(hand);
+  else if(def.equip==='barbell_hands')drawBar(hand);
+  else{x.fillStyle=aD;x.beginPath();x.arc(hand[0],hand[1],S*3.4,0,7);x.fill();} // Faust
+  x.restore();
+}
+(function exAnimLoop(){
+  for(let i=animItems.length-1;i>=0;i--){const it=animItems[i];
+    if(!document.body.contains(it.cv)){animItems.splice(i,1);continue;}
+    if(it.cv.clientWidth){it.phase+=it.def.speed;drawExercise(it);}}
+  requestAnimationFrame(exAnimLoop);
+})();
+
+/* ─── Lokale Übungs-Bibliothek (sofort, ohne KI, offline) ─── */
+const LIB={
+ 'Bizeps-Curls':{animation:'bizeps_curl',equipment:'Kurzhanteln / Wasserflaschen',muskel:'Bizeps',
+   ausfuehrung:['Aufrecht stehen, Hanteln in den Händen, Ellbogen dicht am Körper fixiert.','Unterarme kontrolliert nach oben curlen (1 Sek.), Bizeps oben fest anspannen.','Langsam absenken (2–3 Sek.), Arme fast ganz durchstrecken.'],
+   tipps:['Oberarme bleiben ruhig – nur der Unterarm bewegt sich.','Zu Hause tun 5-Liter-Wasserflaschen oder ein gefüllter Rucksack es auch.'],fehler:['Schwung aus dem Rücken holen.','Ellbogen nach vorne wandern lassen.']},
+ 'Liegestütze':{animation:'liegestuetz',equipment:'ohne Geräte',muskel:'Brust, Trizeps, Schultern',
+   ausfuehrung:['Hände etwas breiter als schulterbreit, Körper bildet eine gerade Linie.','Kontrolliert absenken bis die Brust fast den Boden berührt (Ellbogen ~45°).','Kraftvoll hochdrücken, Rumpf die ganze Zeit anspannen.'],
+   tipps:['Zu schwer? Auf den Knien oder Hände erhöht (Tisch/Wand).','Zu leicht? Füße erhöhen oder Tempo verlangsamen.'],fehler:['Hüfte durchhängen lassen.','Ellbogen 90° abspreizen (Schulterstress).']},
+ 'Kniebeugen':{animation:'squat',equipment:'ohne Geräte / Langhantel',muskel:'Beine, Gesäß',
+   ausfuehrung:['Füße schulterbreit, Zehen leicht nach außen.','Hüfte nach hinten schieben und absenken, bis die Oberschenkel parallel sind.','Durch die Fersen nach oben drücken, Knie folgen der Fußrichtung.'],
+   tipps:['Brust aufrecht, Blick geradeaus.','Gewicht auf der ganzen Fußsohle, nicht auf den Zehen.'],fehler:['Knie fallen nach innen.','Fersen heben vom Boden ab.']},
+ 'Bankdrücken':{animation:'bankdruecken',equipment:'Langhantel / Kurzhanteln',muskel:'Brust',
+   ausfuehrung:['Flach auf die Bank, Schulterblätter zusammenziehen, leichtes Hohlkreuz.','Stange kontrolliert zur unteren Brust absenken.','Explosiv nach oben drücken, ohne die Ellbogen ganz durchzuschnappen.'],
+   tipps:['Füße fest am Boden für Stabilität.','Handgelenke gerade über den Ellbogen.'],fehler:['Stange zu hoch (Richtung Hals) absenken.','Gesäß von der Bank heben.']},
+ 'Schulterdrücken':{animation:'schulterdruecken',equipment:'Kurzhanteln / Langhantel',muskel:'Schultern',
+   ausfuehrung:['Stehend oder sitzend, Gewichte auf Schulterhöhe, Ellbogen leicht vor dem Körper.','Gerade nach oben drücken, bis die Arme fast gestreckt sind.','Kontrolliert zurück auf Schulterhöhe senken.'],
+   tipps:['Rumpf anspannen, kein Hohlkreuz.','Nicht in den Nacken, sondern leicht vor dem Kopf führen.'],fehler:['Zu starkes Zurücklehnen (wird zum Schrägbankdrücken).']},
+ 'Klimmzüge':{animation:'klimmzug',equipment:'Klimmzugstange',muskel:'Rücken, Bizeps',
+   ausfuehrung:['Stange etwas breiter als schulterbreit greifen, aus dem Hang starten.','Schulterblätter nach unten ziehen, Ellbogen zum Körper – Kinn über die Stange.','Langsam und kontrolliert bis zur vollen Streckung ablassen.'],
+   tipps:['Noch zu schwer? Widerstandsband oder negative Wiederholungen.','Brust zur Stange führen statt nur mit den Armen ziehen.'],fehler:['Nur halbe Bewegung (nicht ganz strecken).','Mit Schwung „kippen".']},
+ 'Rudern':{animation:'rudern',equipment:'Langhantel / Kurzhanteln',muskel:'Rücken',
+   ausfuehrung:['Hüfte nach hinten, Oberkörper ~45° vorgebeugt, Rücken gerade.','Gewicht zum unteren Bauch ziehen, Schulterblätter zusammenführen.','Kontrolliert absenken bis die Arme fast gestreckt sind.'],
+   tipps:['Zug aus dem Rücken initiieren, nicht nur aus den Armen.','Kopf in Verlängerung der Wirbelsäule.'],fehler:['Runder Rücken.','Oberkörper mit Schwung aufrichten.']},
+ 'Kreuzheben':{animation:'kreuzheben',equipment:'Langhantel',muskel:'Rücken, Beine, Gesäß',
+   ausfuehrung:['Mittelfuß unter der Stange, schulterbreiter Stand, Stange dicht am Schienbein.','Rücken gerade, Brust raus, Stange dicht am Körper nach oben ziehen.','Hüfte und Knie gleichzeitig strecken, oben Gesäß anspannen.'],
+   tipps:['Stange „schleift" an den Beinen entlang.','Vor jeder Wiederholung Körperspannung neu aufbauen.'],fehler:['Runder unterer Rücken (Verletzungsgefahr!).','Stange wandert nach vorne weg.']},
+ 'Ausfallschritte':{animation:'ausfallschritt',equipment:'ohne Geräte / Kurzhanteln',muskel:'Beine, Gesäß',
+   ausfuehrung:['Großer Schritt nach vorne, Oberkörper aufrecht.','Hinteres Knie kontrolliert Richtung Boden senken (beide Knie ~90°).','Über die vordere Ferse zurück in den Stand drücken.'],
+   tipps:['Vorderes Knie bleibt über dem Sprunggelenk.','Für mehr Gleichgewicht: Blick auf einen festen Punkt.'],fehler:['Vorderes Knie schiebt weit über die Zehen.','Oberkörper kippt nach vorne.']},
+ 'Trizeps-Extension':{animation:'trizeps_extension',equipment:'Kurzhantel / Wasserflasche',muskel:'Trizeps',
+   ausfuehrung:['Gewicht mit beiden Händen über den Kopf, Oberarme senkrecht und fixiert.','Unterarme hinter den Kopf absenken, Ellbogen zeigen nach vorne.','Wieder nach oben strecken, oben den Trizeps anspannen.'],
+   tipps:['Nur der Unterarm bewegt sich, Ellbogen bleiben eng.','Zu Hause: eine schwere Wasserflasche funktioniert bestens.'],fehler:['Ellbogen spreizen nach außen.']},
+ 'Plank':{animation:'plank',equipment:'ohne Geräte',muskel:'Core / Bauch',
+   ausfuehrung:['Unterarme unter den Schultern, Körper bildet eine gerade Linie.','Bauch und Gesäß fest anspannen, gleichmäßig weiteratmen.','Position halten (Zeit über den Isometrie-Timer stoppen).'],
+   tipps:['Nacken lang – Blick zum Boden.','Lieber saubere 30 Sek. als durchhängende 2 Min.'],fehler:['Hüfte zu hoch oder zu tief.','Luft anhalten.']},
+ 'Seitheben':{animation:'seitheben',equipment:'Kurzhanteln / Wasserflaschen',muskel:'Seitliche Schulter',
+   ausfuehrung:['Leichte Gewichte, Arme seitlich fast gestreckt am Körper.','Bis auf Schulterhöhe anheben, kleiner Finger leicht höher als Daumen.','Betont langsam wieder absenken.'],
+   tipps:['Bewusst leicht wählen – Technik schlägt Gewicht.','Kein Schwung, keine Schulterhochzieh-Bewegung.'],fehler:['Über Schulterhöhe hinaus heben.','Mit Schwung „werfen".']}
+};
+const EX_MUSCLES=['Bizeps','Trizeps','Brust','Rücken','Schultern','Beine','Bauch','Ganzkörper'];
+function renderExerciseChips(){
+  const el=$('#exChips');if(!el||el.dataset.done)return;el.dataset.done='1';
+  el.innerHTML=EX_MUSCLES.map(m=>`<button class="chip" style="cursor:pointer;border-color:var(--acc);background:rgba(209,85,37,.12)" onclick="askExercise('Wie trainiere ich effektiv ${m}? Gib mir die besten Übungen.')">${m}</button>`).join('')
+    +`<span style="width:100%;height:0"></span>`
+    +Object.keys(LIB).map(n=>`<button class="chip" style="cursor:pointer" data-n="${esc(n)}" onclick="openLibExercise(this.dataset.n)">${esc(n)}</button>`).join('');
+}
+function exerciseCardHTML(ex){
+  const noEquip=!ex.equipment||/ohne|eigengewicht|kein/i.test(ex.equipment);
+  return `<div class="card" style="margin-bottom:12px">
+    <div class="row" style="justify-content:space-between"><b style="font-size:15px">${esc(ex.name)}</b>
+      <span class="badge ${noEquip?'verifiziert':'crowd'}">${esc(ex.equipment||'ohne Geräte')}</span></div>
+    ${ex.muskel?`<span class="sub" style="font-size:12px">🎯 ${esc(ex.muskel)}</span>`:''}
+    <canvas class="exAnim" data-anim="${esc(ex.animation||ex.name)}" data-equip="${esc(ex.equipment||'')}" style="width:100%;height:180px;margin:10px 0;background:var(--field);border:1px solid var(--line);border-radius:14px"></canvas>
+    ${ex.ausfuehrung?.length?`<b style="font-size:13px">📋 Ausführung</b><ol style="margin:6px 0 0 18px;font-size:13px;color:var(--mut)">${ex.ausfuehrung.map(s=>`<li style="margin:3px 0">${esc(s)}</li>`).join('')}</ol>`:''}
+    ${ex.tipps?.length?`<b style="font-size:13px;display:block;margin-top:10px;color:var(--acc)">💡 Tipps</b>${ex.tipps.map(t=>`<p style="margin:4px 0;font-size:12.5px;color:var(--mut)">• ${esc(t)}</p>`).join('')}`:''}
+    ${ex.fehler?.length?`<b style="font-size:13px;display:block;margin-top:10px;color:var(--err)">⚠️ Häufige Fehler</b>${ex.fehler.map(t=>`<p style="margin:4px 0;font-size:12.5px;color:var(--mut)">• ${esc(t)}</p>`).join('')}`:''}
+    <button class="btn sm ghost" style="margin-top:10px" onclick="window.open('https://www.youtube.com/results?search_query='+encodeURIComponent('${esc(ex.name)} richtige Ausführung'),'_blank')">▶ Video-Tutorials</button>
+  </div>`;
+}
+function showExercises(intro,list){
+  const box=$('#exResult');if(!box)return;
+  box.innerHTML=(intro?`<p class="sub">${esc(intro)}</p>`:'')+list.map(exerciseCardHTML).join('');
+  box.querySelectorAll('.exAnim').forEach(cv=>mountExerciseAnim(cv,resolveAnim(cv.dataset.anim),cv.dataset.equip));
+  box.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function openLibExercise(name){const ex=LIB[name];if(ex)showExercises(null,[Object.assign({name},ex)]);}
+async function askExercise(preset){
+  const q=(preset||$('#exQ')?.value||'').trim();if(!q)return toast('Stell eine Frage oder tippe eine Übung an','err');
+  if(preset&&$('#exQ'))$('#exQ').value=q;
+  // Direkt-Treffer aus der lokalen Bibliothek (spart KI-Call, sofort)
+  const hit=Object.keys(LIB).find(n=>q.toLowerCase().includes(n.toLowerCase().split('-')[0].toLowerCase()));
+  try{
+    const res=await aiCall('exercise_coach',{text:q,context:{profil:S.profile,ziel:S.profile.ziel}},'Übungs-Coach überlegt…');
+    if(res.uebungen?.length)return showExercises(res.antwort,res.uebungen);
+    if(hit)return openLibExercise(hit);
+    toast('Keine Übungen gefunden – versuch es konkreter','err');
+  }catch{ if(hit)openLibExercise(hit); }
+}
+// Formcheck im Live-Tracker: zeigt jetzt die Animation statt nur YouTube
+function formCheck(n){
+  modal(`<div class="mhead"><h3>🎥 ${esc(n)}</h3><button class="x" onclick="closeModal()">✕</button></div>
+  <canvas class="exAnim" style="width:100%;height:200px;background:var(--field);border:1px solid var(--line);border-radius:14px"></canvas>
+  <div class="row" style="margin-top:12px">
+    <button class="btn sm" onclick="closeModal();showTab('training');$('#exQ').value='Wie führe ich ${esc(n)} richtig aus?';askExercise()">🎓 Technik-Tipps holen</button>
+    <button class="btn sm ghost" onclick="window.open('https://www.youtube.com/results?search_query='+encodeURIComponent('${esc(n)} richtige Ausführung'),'_blank')">▶ Video</button></div>`);
+  mountExerciseAnim($('#overlay .exAnim'),resolveAnim(n),n);
+}
+// Chips beim Öffnen des Trainings-Tabs füllen
+const _rt10=renderTraining;renderTraining=function(){_rt10();renderExerciseChips();};
+renderExerciseChips();
+</script>
+
+<script>
+/* ═══════════════════ ÜBERSETZER: Google-Website-Translator (übersetzt die GANZE Seite clientseitig, wie im Evidence Journal) ═══════════════════ */
+(function(){
+  // Quellsprache der App = Deutsch. Auswahl 'de' = Original (keine Übersetzung).
+  const LANGS=[['de','Deutsch (Original)'],['en','English'],['tr','Türkçe'],['fr','Français'],['es','Español'],
+    ['it','Italiano'],['pt','Português'],['nl','Nederlands'],['pl','Polski'],['ru','Русский'],['uk','Українська'],
+    ['ro','Română'],['el','Ελληνικά'],['ar','العربية'],['fa','فارسی'],['hi','हिन्दी'],['zh-CN','中文'],['ja','日本語'],['ko','한국어']];
+  // googtrans-Cookie setzen (Quelle /de/ → Zielsprache) auf allen Domain-Varianten
+  function setGoogTrans(lang){
+    const v=(lang&&lang!=='de')?('/de/'+lang):'';
+    try{document.cookie='googtrans='+v+';path=/';
+      const h=location.hostname;document.cookie='googtrans='+v+';path=/;domain='+h;
+      if(h.indexOf('.')>0)document.cookie='googtrans='+v+';path=/;domain=.'+h;}catch(e){}
+  }
+  function applyTranslate(lang,tries){
+    tries=tries||0;setGoogTrans(lang);
+    const combo=document.querySelector('.goog-te-combo');
+    if(combo){combo.value=(lang==='de'?'':lang);combo.dispatchEvent(new Event('change'));}
+    else if(tries<25)setTimeout(function(){applyTranslate(lang,tries+1);},400);
+  }
+  // Google-Translate-Widget + Banner/Spinner ausblenden
+  function injectGT(){
+    if(window._gtInjected)return;window._gtInjected=true;
+    const st=document.createElement('style');st.textContent=
+      '.goog-te-banner-frame,.skiptranslate.goog-te-banner-frame{display:none!important}'+
+      'body{top:0!important;position:static!important}'+
+      '#google_translate_element{position:absolute!important;left:-9999px!important;top:-9999px!important;height:0!important;overflow:hidden!important}'+
+      '.goog-te-gadget{height:0;overflow:hidden}#goog-gt-tt,.goog-te-balloon-frame{display:none!important}'+
+      '.goog-text-highlight{background:none!important;box-shadow:none!important}'+
+      'iframe.skiptranslate,.goog-te-spinner-pos,.goog-te-spinner,#goog-gt-tt{display:none!important}'+
+      '.VIpgJd-ZVi9od-aZ2wEe-wOHMyf,.VIpgJd-ZVi9od-aZ2wEe-wOHMyf-ti6hGc,.VIpgJd-ZVi9od-aZ2wEe,.VIpgJd-ZVi9od-aZ2wEe-OiiCO{display:none!important;visibility:hidden!important;opacity:0!important}';
+    document.head.appendChild(st);
+    const el=document.createElement('div');el.id='google_translate_element';el.className='notranslate';document.body.appendChild(el);
+    function gtClean(){try{document.body.style.top='0';
+      document.querySelectorAll('iframe.skiptranslate,.goog-te-spinner-pos,.goog-te-spinner,.VIpgJd-ZVi9od-aZ2wEe-wOHMyf,.VIpgJd-ZVi9od-aZ2wEe').forEach(function(n){n.style.display='none';});
+    }catch(e){}}
+    try{new MutationObserver(gtClean).observe(document.body,{childList:true,subtree:true});}catch(e){}
+    setInterval(gtClean,1500);
+    window.googleTranslateElementInit=function(){
+      try{new google.translate.TranslateElement({pageLanguage:'de',autoDisplay:false},'google_translate_element');}catch(e){}
+      setTimeout(function(){applyTranslate(S.lang||'de');},900);
+    };
+    const sc=document.createElement('script');sc.src='https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit';document.head.appendChild(sc);
+  }
+  // Sprach-Auswahl im Setup befüllen + verdrahten
+  window.renderLangSelect=function(){
+    const sel=$('#setLang');if(!sel)return;
+    sel.innerHTML=LANGS.map(function(l){return '<option value="'+l[0]+'">'+l[1]+'</option>';}).join('');
+    sel.value=S.lang||'de';
+    const h=$('#langHint');if(h)h.textContent=(S.lang&&S.lang!=='de')?'Aktiv: '+(LANGS.find(function(l){return l[0]===S.lang;})||[,''])[1]:'Original (Deutsch)';
+  };
+  window.setLang=function(code){
+    S.lang=code;save();
+    if(window.renderLangSelect)renderLangSelect();
+    // Zurück zum Original (Deutsch) sauber per Reload – Google Translate hebt die Übersetzung sonst nicht in-place auf
+    if(code==='de'){setGoogTrans('de');location.reload();return;}
+    injectGT();applyTranslate(code);
+  };
+  injectGT();
+  // Beim Start gewählte Sprache anwenden
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){applyTranslate(S.lang||'de');},400);});
+  else setTimeout(function(){applyTranslate(S.lang||'de');},400);
+})();
+// Sprach-Auswahl im Setup nach jedem Settings-Render neu befüllen
+const _rs10=renderSettings;renderSettings=function(){_rs10();if(window.renderLangSelect)renderLangSelect();};
+if(window.renderLangSelect)renderLangSelect();
+</script>
+<script>
+/* ═══════════════════ Evidence Fit · Abo & Verbindung zu Evidence (24.10.2026) ═══════════════════
+   Spricht mit worker/access.js. Drei Dinge:
+   1. Status: Free · Evidence-Fit-Abo · „über Evidence Pro" (verknüpft).
+   2. Abo starten (4,99 € / 5,59 $), verwalten und kündigen (Stripe-Portal).
+   3. Mit Evidence Trading verbinden: Einmal-Code aus Evidence + Einwilligung je
+      Kategorie (Art. 9 DSGVO). Danach gehen die letzten Tage automatisch rüber —
+      nur die freigegebenen Werte, nie Notizen, Fotos oder Rezepte.
+   ═══════════════════════════════════════════════════════════════════════════════ */
+(function(){
+  'use strict';
+  var A = {}; window.FitAccess = A;
+  var BRAND = '<span class="notranslate" translate="no">Evidence Fit</span>';
+  var EV = '<span class="notranslate" translate="no">Evidence</span>';
+  var st = { loaded:false, plan:'free', linked:false, consent:null, until:null, status:null, err:'' };
+  var EU = /^(de|at|ch|fr|es|it|nl|be|pt|ie|fi|gr|lu|si|sk|ee|lv|lt|mt|cy|hr)$/i;
+
+  function api(){ return (S.workerUrl||'').trim().replace(/\/$/,''); }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  async function call(path, body){
+    var r = await fetch(api()+path, { method: body===undefined ? 'GET' : 'POST', headers: await fitAuthHeaders(),
+      body: body===undefined ? undefined : JSON.stringify(body) });
+    var d = {}; try { d = await r.json(); } catch(e){}
+    if (!r.ok) { var e = new Error(d.error || ('HTTP '+r.status)); e.status = r.status; throw e; }
+    return d;
+  }
+  function defaultCurrency(){
+    var l = (navigator.language||'de').split('-'), region = (l[1]||'').toLowerCase(), lang = (l[0]||'').toLowerCase();
+    if (region) return EU.test(region) ? 'eur' : 'usd';
+    return /^(de|fr|es|it|nl|pt|fi|el|sk|sl|et|lv|lt|mt|hr)$/.test(lang) ? 'eur' : 'usd';
+  }
+  var PRICE = { eur: '4,99 €', usd: '$5.59' };
+
+  A.refresh = async function(){
+    if (!(window.firebase && firebase.auth().currentUser)) return;
+    try { var d = await call('/api/access'); Object.assign(st, d, { loaded:true, err:'' }); }
+    catch(e){ st.loaded = true; st.err = e.status === 503 ? '' : 'Status konnte nicht geladen werden.'; }
+    A.render();
+  };
+  A.plan = function(){ return st.plan; };
+
+  A.paywall = function(){
+    var cur = defaultCurrency();
+    modal('<div class="mhead"><h3>✨ Diese Funktion nutzt KI</h3></div>'+
+      '<p class="sub">Eintragen, Tracken und Auswerten bleibt in '+BRAND+' kostenlos. Alles mit KI – Foto-Erkennung, Rezepte, Wochenplan, Coach und Insights – gehört zum Abo.</p>'+
+      '<div class="fa-price"><b class="notranslate" translate="no">'+PRICE[cur]+'</b> <span>pro Monat · jederzeit kündbar</span></div>'+
+      '<p class="sub" style="margin-top:8px">Du hast '+EV+' Pro? Dann ist das Abo für dich inklusive – einfach unter Einstellungen verbinden.</p>'+
+      '<div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap">'+
+        '<button class="btn" onclick="FitAccess.checkout(\''+cur+'\')">Abo starten</button>'+
+        '<button class="btn ghost" onclick="closeModal();showTab(\'einstellungen\')">Mit '+EV+' verbinden</button>'+
+      '</div>');
+  };
+
+  /* Vor Stripe: Widerrufsrecht-Verzicht (§ 356 Abs. 5 BGB). Ohne Häkchen
+     lehnt auch der Worker ab (waiver_required). */
+  A.checkout = function(cur){
+    cur = cur || defaultCurrency();
+    modal('<div class="mhead"><h3>Abo starten</h3></div>'+
+      '<div class="fa-price"><b class="notranslate" translate="no">'+PRICE[cur]+'</b> <span>pro Monat · verlängert sich monatlich · jederzeit zum Monatsende kündbar</span></div>'+
+      '<label class="fa-consent" style="margin-top:12px"><input type="checkbox" id="faWaiver"> <span>Ich verlange ausdrücklich, dass '+BRAND+' sofort, also vor Ablauf der Widerrufsfrist, mit der Leistung beginnt. Mir ist bekannt, dass ich dadurch mein Widerrufsrecht verliere.</span></label>'+
+      '<div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap">'+
+        '<button class="btn" onclick="FitAccess.checkoutGo(\''+cur+'\')">Weiter zur Zahlung</button>'+
+        '<button class="btn ghost" onclick="closeModal()">Abbrechen</button></div>');
+  };
+  A.checkoutGo = async function(cur){
+    if (!$('#faWaiver').checked) { toast('Bitte das Häkchen zum sofortigen Beginn setzen.', 'err'); return; }
+    try { var d = await call('/api/billing/checkout', { currency: cur, waiver: true }); location.href = d.url; }
+    catch(e){ toast(e.message === 'billing_not_configured' ? 'Das Abo ist noch nicht freigeschaltet.' : 'Abo konnte nicht gestartet werden.', 'err'); }
+  };
+  A.portal = async function(){
+    try { var d = await call('/api/billing/portal', {}); location.href = d.url; }
+    catch(e){ toast('Abo-Verwaltung konnte nicht geöffnet werden.', 'err'); }
+  };
+
+  A.link = async function(){
+    var code = ($('#faCode').value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+    var c = { sleep: $('#faC_sleep').checked, nutrition: $('#faC_nutrition').checked, training: $('#faC_training').checked, body: $('#faC_body').checked };
+    if (code.length < 6) { toast('Bitte den Code aus Evidence eingeben.', 'err'); return; }
+    if (!$('#faConsent').checked) { toast('Bitte die Einwilligung bestätigen.', 'err'); return; }
+    if (!c.sleep && !c.nutrition && !c.training && !c.body) { toast('Wähle mindestens eine Kategorie.', 'err'); return; }
+    try { var d = await call('/api/link', { code: code, consent: c }); Object.assign(st, d); toast('Mit Evidence verbunden ✓'); A.render(); A.share(true); }
+    catch(e){ toast(e.message === 'code_invalid' ? 'Code unbekannt oder abgelaufen – erzeuge in Evidence einen neuen.' : 'Verbinden fehlgeschlagen.', 'err'); }
+  };
+  A.unlink = async function(){
+    if (!confirm('Verbindung trennen? Alle bisher geteilten Tage werden in Evidence gelöscht.')) return;
+    try { await call('/api/unlink', {}); st.linked = false; st.consent = null; await A.refresh(); toast('Verbindung getrennt – geteilte Daten gelöscht.'); }
+    catch(e){ toast('Trennen fehlgeschlagen.', 'err'); }
+  };
+
+  /* Tageszusammenfassung — genau die Felder, die access.js kennt.
+     Was nicht freigegeben ist, filtert der Worker zusätzlich heraus. */
+  function summary(d){
+    var bio = S.biometrics.find(function(b){ return b.date===d; }) || {};
+    var t = dayTotals(d), logs = S.logs.filter(function(l){ return l.date===d; });
+    var o = { date: d };
+    var put = function(k, v){ if (typeof v === 'boolean' || (typeof v === 'number' && isFinite(v))) o[k] = v; };
+    if (bio.schlaf) put('sleepH', +bio.schlaf);
+    if (bio.rhr) put('rhr', +bio.rhr);
+    if (bio.hrv) put('hrv', +bio.hrv);
+    if (bio.gewicht) put('weightKg', +bio.gewicht);
+    if (d === todayStr() && typeof readinessScore === 'function') { var rd = readinessScore(); if (rd) put('readiness', rd.score); }
+    if (t.kalorien > 0) { put('kcal', Math.round(t.kalorien)); put('protein', Math.round(t.protein_g)); put('carbs', Math.round(t.kohlenhydrate_g)); put('fat', Math.round(t.fett_g)); }
+    var w = (S.water||{})[d]; if (w) put('waterMl', +w);
+    put('alcoholDrinks', +((S.alcohol||{})[d] || 0));
+    put('trained', logs.length > 0);
+    if (logs.length) { put('sessions', logs.length); put('tonnage', Math.round(logs.reduce(function(a,l){ return a+(+l.tonnage||0); },0))); }
+    return o;
+  }
+  A.summary = summary;
+  var _shareT = null, _lastShare = '';
+  A.share = function(now){
+    if (!st.linked) return;
+    clearTimeout(_shareT);
+    _shareT = setTimeout(async function(){
+      var days = [0,1,2].map(function(i){ return summary(new Date(Date.now()-i*864e5).toISOString().slice(0,10)); });
+      var sig = JSON.stringify(days); if (sig === _lastShare) return;
+      try { await call('/api/share', { days: days }); _lastShare = sig; } catch(e){}
+    }, now ? 300 : 15000);
+  };
+
+  /* Einwilligung für Bestandsnutzer (registriert vor dem 24.10.2026). */
+  A.askConsent = function(){
+    if (S.consentHealthAt) return;
+    modal('<div class="mhead"><h3>Kurze Bestätigung</h3></div>'+
+      '<p class="sub">'+BRAND+' speichert Gesundheitsdaten wie Schlaf, Ruhepuls, Gewicht und Ernährung. Dafür brauchen wir deine ausdrückliche Einwilligung (Art. 9 Abs. 2 lit. a DSGVO). Du kannst sie jederzeit widerrufen, indem du dein Konto löschst.</p>'+
+      '<div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap">'+
+        '<button class="btn" onclick="S.consentHealthAt=Date.now();save();closeModal();toast(\'Danke ✓\')">Ich willige ein</button>'+
+        '<button class="btn ghost" onclick="closeModal();showTab(\'einstellungen\');FitAccess.deleteAccount()">Nicht einwilligen – Konto löschen</button>'+
+      '</div>');
+  };
+
+  /* Konto und alle Daten löschen (Art. 17 DSGVO). */
+  A.deleteAccount = async function(){
+    if (st.plan === 'fit') { toast('Bitte zuerst das Abo kündigen (Abo verwalten).', 'err'); return; }
+    if (!confirm('Konto und ALLE Daten unwiderruflich löschen? Mahlzeiten, Training, Fotos, Verlauf — alles. Eine Verbindung zu Evidence wird dabei getrennt und dort ebenfalls gelöscht.')) return;
+    var u = window.firebase && firebase.auth().currentUser; if (!u) return;
+    try {
+      if (st.linked) { try { await call('/api/unlink', {}); } catch(e){} }
+      try { stopCloudSync(); } catch(e){}
+      await firebase.firestore().collection('apexfit').doc(u.uid).delete();
+      await u.delete();
+      try { Object.keys(localStorage).forEach(function(k){ if (/^apexfit/.test(k)) localStorage.removeItem(k); }); } catch(e){}
+      alert('Dein Konto und alle Daten wurden gelöscht.');
+      location.reload();
+    } catch(e){
+      toast(e && e.code === 'auth/requires-recent-login' ? 'Aus Sicherheitsgründen bitte ab- und wieder anmelden, dann erneut löschen.' : 'Löschen fehlgeschlagen.', 'err');
+    }
+  };
+
+  /* Kündigungsseite ohne Login (§ 312k BGB): eigene Ebene über dem
+     Login-Fenster, erreichbar über „Verträge hier kündigen“ oder #kuendigen. */
+  A.cancelPage = function(){
+    var el = document.getElementById('faCancel');
+    if (!el) { el = document.createElement('div'); el.id = 'faCancel'; document.body.appendChild(el); }
+    var u = window.firebase && firebase.auth && firebase.auth().currentUser;
+    el.innerHTML = '<div class="card" style="max-width:420px;width:100%">'+
+      '<h2 style="margin-top:0">Verträge hier kündigen</h2>'+
+      '<p class="sub">Kündige dein '+BRAND+'-Abo – ohne Anmeldung. Es endet zum Ende des bezahlten Monats; bis dahin kannst du alles weiter nutzen. Du bekommst sofort eine Eingangsbestätigung per E-Mail.</p>'+
+      '<label>E-Mail-Adresse des Abos</label><input type="email" id="faCxEmail" autocomplete="email" placeholder="du@mail.de" value="'+esc(u && u.email || '')+'">'+
+      '<label>Art der Kündigung</label><select id="faCxKind"><option>Ordentliche Kündigung zum nächstmöglichen Zeitpunkt</option><option>Außerordentliche Kündigung</option></select>'+
+      '<div class="row" style="gap:8px;margin-top:14px;flex-wrap:wrap">'+
+        '<button class="btn" id="faCxGo" onclick="FitAccess.cancelSend()">Jetzt kündigen</button>'+
+        '<button class="btn ghost" onclick="FitAccess.cancelClose()">Zurück</button></div>'+
+      '<p class="sub" id="faCxMsg" style="margin-top:12px"></p></div>';
+    el.classList.add('show');
+  };
+  A.cancelClose = function(){ var el = document.getElementById('faCancel'); if (el) el.classList.remove('show'); if (location.hash === '#kuendigen') history.replaceState(null, '', location.pathname + location.search); };
+  A.cancelSend = async function(){
+    var email = ($('#faCxEmail').value||'').trim(), msg = $('#faCxMsg'), go = $('#faCxGo');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { msg.textContent = 'Bitte eine gültige E-Mail-Adresse eingeben.'; return; }
+    go.disabled = true; msg.textContent = 'Wird gesendet …';
+    try {
+      var r = await fetch(api() + '/api/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email, kind: $('#faCxKind').value }) });
+      var d = {}; try { d = await r.json(); } catch(e){}
+      if (!r.ok) throw new Error(d.error || r.status);
+      var at = new Date(d.receivedAt || Date.now()).toLocaleString('de-DE');
+      msg.innerHTML = '<b>Kündigung eingegangen am '+esc(at)+'.</b> Die Bestätigung geht an '+esc(email)+'. Bitte mach dir einen Screenshot dieser Seite.';
+    } catch(e){
+      go.disabled = false;
+      msg.textContent = String(e.message) === 'rate_limited' ? 'Zu viele Versuche – bitte in einer Stunde erneut.' : 'Senden fehlgeschlagen. Bitte erneut versuchen oder per E-Mail kündigen.';
+    }
+  };
+  if (location.hash === '#kuendigen') setTimeout(A.cancelPage, 0);
+  window.addEventListener('hashchange', function(){ if (location.hash === '#kuendigen') A.cancelPage(); });
+
+  A.render = function(){
+    var tab = document.getElementById('tab-einstellungen'); if (!tab) return;
+    var box = document.getElementById('faCard');
+    if (!box) {
+      box = document.createElement('div'); box.id = 'faCard'; box.className = 'card';
+      // unter die Seitenüberschrift, nicht darüber
+      var head = tab.querySelector('h1, h2, .ph, .tab-title');
+      var after = head && head.parentNode === tab ? head : null;
+      if (after && after.nextElementSibling && after.nextElementSibling.classList.contains('sub')) after = after.nextElementSibling;   // Untertitel mitnehmen
+      if (after) after.insertAdjacentElement('afterend', box); else tab.insertBefore(box, tab.firstChild);
+    }
+    var label = st.plan === 'fit' ? 'Abo aktiv' : st.plan === 'evidence-pro' ? 'Inklusive über '+EV+' Pro' : 'Kostenlos';
+    var until = st.until && st.plan === 'fit' ? ' · läuft bis '+new Date(st.until).toLocaleDateString('de-DE') : '';
+    var cur = defaultCurrency();
+    var cats = [['sleep','😴 Schlaf & Readiness','Schlafdauer, Readiness, Ruhepuls, HRV'],['nutrition','🍽 Ernährung','kcal, Makros, Wasser, Alkohol'],
+                ['training','🏋️ Training','trainiert ja/nein, Einheiten, Tonnage'],['body','⚖️ Körper','Gewicht']];
+    var c = st.consent || {};
+    box.innerHTML =
+      '<h2 style="margin-top:0">⭐ Abo & '+EV+'</h2>'+
+      '<div class="row" style="justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">'+
+        '<div><b>'+label+'</b><span class="sub" style="margin:0">'+until+'</span></div>'+
+        (st.plan === 'fit' ? '<span><button class="btn ghost" onclick="FitAccess.portal()">Abo verwalten</button> <button class="btn ghost" onclick="FitAccess.cancelPage()">Verträge hier kündigen</button></span>'
+         : st.plan === 'free' ? '<button class="btn" onclick="FitAccess.checkout(\''+cur+'\')">Abo starten · <span class="notranslate" translate="no">'+PRICE[cur]+'</span>/Monat</button>' : '')+
+      '</div>'+
+      (st.plan === 'free' ? '<p class="sub">Tracken bleibt kostenlos. Das Abo schaltet alle KI-Funktionen frei. Mit '+EV+' Pro ist es inklusive.</p>' : '')+
+      (st.err ? '<p class="sub" style="color:var(--err)">'+esc(st.err)+'</p>' : '')+
+      '<div class="fa-sep"></div>'+
+      (st.linked
+        ? '<b>Mit '+EV+' Trading verbunden</b>'+
+          '<p class="sub">Geteilt wird: '+cats.filter(function(x){ return c[x[0]]; }).map(function(x){ return x[1]; }).join(' · ')+'. Notizen, Fotos und Rezepte bleiben immer hier.</p>'+
+          '<button class="btn ghost" onclick="FitAccess.unlink()">Verbindung trennen & geteilte Daten löschen</button>'
+        : '<b>Mit '+EV+' Trading verbinden</b>'+
+          '<p class="sub">So sieht '+EV+', wie Schlaf, Essen und Training mit deinem Trading zusammenhängen. In '+EV+': Einstellungen → '+BRAND+' → Code erzeugen.</p>'+
+          '<input id="faCode" class="inp" placeholder="Code, z. B. 4F7K9QXA" maxlength="12" autocomplete="off" style="text-transform:uppercase;max-width:220px">'+
+          '<div class="fa-cats">'+cats.map(function(x){ return '<label><input type="checkbox" id="faC_'+x[0]+'" checked> <b>'+x[1]+'</b> <span class="sub" style="margin:0">'+x[2]+'</span></label>'; }).join('')+'</div>'+
+          '<label class="fa-consent"><input type="checkbox" id="faConsent"> <span>Ich willige ausdrücklich ein, dass die oben gewählten Gesundheitsdaten (Art. 9 DSGVO) an mein '+EV+'-Trading-Konto übertragen und dort ausgewertet werden. Ich kann das jederzeit widerrufen – „Trennen“ löscht die übertragenen Daten.</span></label>'+
+          '<button class="btn" onclick="FitAccess.link()">Verbinden</button>')+
+      '<div class="fa-sep"></div><button class="btn ghost" style="color:var(--err)" onclick="FitAccess.deleteAccount()">Konto & alle Daten löschen</button>';
+  };
+
+  var css = document.createElement('style');
+  css.textContent = '.fa-price{font-size:15px;margin-top:10px}.fa-price b{font-size:22px}'+
+    '#faCancel{position:fixed;inset:0;z-index:700;background:var(--body-bg);display:none;align-items:center;justify-content:center;padding:20px;overflow-y:auto}#faCancel.show{display:flex}'+
+    '.fa-consent{display:flex;gap:8px;align-items:flex-start;text-transform:none;letter-spacing:normal;font-weight:400;font-size:12px;line-height:1.5}.fa-consent input{width:auto;margin-top:3px;flex:none}'+
+    '.fa-sep{height:1px;background:var(--line,rgba(127,127,127,.2));margin:14px 0}'+
+    '.fa-cats{display:grid;gap:6px;margin:10px 0}.fa-cats label{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;font-size:13px}'+
+    '.fa-consent{display:flex;gap:8px;align-items:flex-start;font-size:12px;line-height:1.5;margin:8px 0 12px}'+
+    /* Die globale Label-Gestaltung (Großbuchstaben, Block) hier nicht anwenden */
+    '#faCard label{text-transform:none;letter-spacing:normal;font-weight:400;color:inherit;margin:0}'+
+    '#faCard input[type=checkbox]{width:auto;height:auto;margin:3px 0 0;flex:none;padding:0}'+
+    '#faCard .fa-cats label b{font-weight:600}#faCard #faCode{margin:6px 0 4px}';
+  document.head.appendChild(css);
+
+  // Nach Login und nach Rückkehr vom Checkout den Stand holen; nach jedem Speichern teilen.
+  try { firebase.auth().onAuthStateChanged(function(u){ if (u) { A.refresh(); setTimeout(A.askConsent, 4000); } }); } catch(e){}
+  if (/abo=ok/.test(location.hash)) { setTimeout(function(){ toast('Danke! Dein Abo ist aktiv.'); A.refresh(); }, 1500); history.replaceState(null,'',location.pathname); }
+  var prevSave = window._onSave;
+  window._onSave = function(){ try { if (prevSave) prevSave.apply(this, arguments); } finally { A.share(false); } };
+  A.render();
+})();
 </script>
 </body>
 </html>

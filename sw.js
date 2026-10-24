@@ -1,5 +1,5 @@
-/* APEX FIT Service Worker – Offline-Cache + Web Push */
-const CACHE = 'apexfit-v4';
+/* Evidence Fit Service Worker – Offline-Cache + Web Push */
+const CACHE = 'apexfit-v7';  // Präfix bleibt (Cache-Namen der Nutzer), Version für das Umbenennen erhöht
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -17,6 +17,10 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
+
+  // Firebase/Google Auth & APIs NIE anfassen (sonst droht auth/network-request-failed durch Cache-Interferenz)
+  if (url.hostname.endsWith('.googleapis.com') || url.hostname.endsWith('.firebaseapp.com') ||
+      url.hostname.endsWith('.firebaseio.com') || url.hostname === 'apis.google.com') return;
 
   // App-Navigation: Netz zuerst (frische Version), offline aus dem Cache
   if (req.mode === 'navigate') {
@@ -43,7 +47,7 @@ self.addEventListener('fetch', e => {
 /* Push: kommt ohne Payload – Nachricht wird beim Worker abgeholt */
 self.addEventListener('push', e => {
   e.waitUntil((async () => {
-    let body = 'Erinnerung – öffne APEX FIT';
+    let body = 'Erinnerung – öffne Evidence Fit';
     try {
       const cfg = await caches.open('apexfit-cfg');
       const r = await cfg.match('/cfg/workerUrl');
@@ -57,7 +61,7 @@ self.addEventListener('push', e => {
         }
       }
     } catch { /* generische Nachricht reicht */ }
-    await self.registration.showNotification('APEX FIT', { body, icon: 'icon-192.png', badge: 'icon-192.png', tag: 'apexfit' });
+    await self.registration.showNotification('Evidence Fit', { body, icon: 'icon-192.png', badge: 'icon-192.png', tag: 'apexfit' });
   })());
 });
 
