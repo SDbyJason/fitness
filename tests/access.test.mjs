@@ -73,5 +73,13 @@ await t('admin: broken state does not crash', () => ok(summarize('{kaputt').byte
 
 await t('stripe: period end from items (new API) or top level (old)', () => ok(periodEnd({ items: { data: [{ current_period_end: 2000 }] } }) === 2e6 && periodEnd({ current_period_end: 1000 }) === 1e6 && periodEnd(null) === 0));
 
+await t('consent: mind category only with its own consent', () => {
+  const d = { date: '2026-10-24', sleepH: 7, stress: 4, mood: 2, sick: true, bedHour: 24.5 };
+  const a = filterDay(d, { sleep: true }), b = filterDay(d, { mind: true });
+  ok(a.sleepH === 7 && a.bedHour === 24.5 && !('stress' in a) && !('sick' in a), JSON.stringify(a));
+  ok(b.stress === 4 && b.mood === 2 && b.sick === true && !('sleepH' in b), JSON.stringify(b));
+  ok(cleanConsent({ mind: true }).mind === true && cleanConsent({}).mind === false);
+});
+
 console.log(fail ? fail + ' failed' : 'Evidence Fit access: all tests passed');
 process.exit(fail ? 1 : 0);

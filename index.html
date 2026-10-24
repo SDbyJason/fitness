@@ -292,6 +292,7 @@ td{padding:8px 6px;border-top:1px solid var(--line)}
           <button class="btn sm" style="margin-top:22px" onclick="saveBio()">Speichern</button>
         </div>
       </div>
+      <div class="card" id="checkinCard"></div>
       <div class="card" id="dashStats"></div>
       <div class="card" id="readyCard" style="display:none"></div>
       <div class="card" id="cycleCard" style="display:none"></div>
@@ -709,7 +710,7 @@ const DEFAULTS = {
   workerUrl:'',
   meals:{}, biometrics:[], supplements:[], plans:[], logs:[],
   skills:{}, skillLogs:[], dailyPlans:{}, recipes:[], tips:null, coach:null,
-  recentRecipeNames:[], coachChat:[], tomb:{}, coachChatClearedAt:0, lang:'de'
+  recentRecipeNames:[], coachChat:[], tomb:{}, coachChatClearedAt:0, lang:'de', checkin:{}, caffeine:{}
 };
 // Löschung merken, damit sie beim Cloud-Merge NICHT wieder auftaucht (Tombstone), + sofort syncen
 function tombstone(key){(S.tomb=S.tomb||{})[key]=Date.now();save();}
@@ -2058,6 +2059,13 @@ function mergeStates(a,b){
   R.recentRecipeNames=[...new Set([...(a.recentRecipeNames||[]),...(b.recentRecipeNames||[])])].slice(-40);
   // Progress-Fotos vereinigen (max 20, gelöschte raus), Zyklus-Starts vereinigen
   const pp=new Map();[...(a.progressPics||[]),...(b.progressPics||[])].forEach(p=>{if(!p)return;const key=p.date+(p.thumb||'').slice(-24);if(!dead('pic:'+key))pp.set(key,p);});R.progressPics=[...pp.values()].slice(-20);
+  // Check-in (24.10.2026): pro Datum feldweise, der jüngere Eintrag (_t) gewinnt
+  R.checkin={};[older.checkin||{},newer.checkin||{}].forEach(src=>{for(const d in src){const x=src[d]||{},c=R.checkin[d];
+    R.checkin[d]=!c?{...x}:((x._t||0)>=(c._t||0)?{...c,...x}:{...x,...c});}});
+  // Koffein: pro Datum Einträge per id vereinigen (gelöschte raus)
+  R.caffeine={};[a.caffeine||{},b.caffeine||{}].forEach(src=>{for(const d in src){
+    const m=new Map((R.caffeine[d]||[]).map(x=>[x.id,x]));(src[d]||[]).forEach(x=>x?.id&&!dead('caf:'+x.id)&&m.set(x.id,x));
+    const arr=[...m.values()].sort((x,y)=>(x.t||'')<(y.t||'')?-1:1);if(arr.length)R.caffeine[d]=arr;}});
   R.cycle={starts:[...new Set([...(a.cycle?.starts||[]),...(b.cycle?.starts||[])])].sort()};
   // alte Tombstones (>120 Tage) aufräumen, damit sie nicht unbegrenzt wachsen
   const cut=Date.now()-120*864e5;for(const k in R.tomb)if(R.tomb[k]<cut)delete R.tomb[k];
@@ -2388,6 +2396,8 @@ function readinessScore(){
   const base=k=>{const v=hist.map(b=>+b[k]).filter(Boolean);return v.length>=5?avg(v):null;};
   const comps=[];
   if(bio.schlaf)comps.push({n:'😴 Schlaf',s:Math.min(1,bio.schlaf/8),txt:fmt(bio.schlaf,1)+' h'});
+  const ci=(S.checkin||{})[todayStr()]||{};
+  if(ci.q)comps.push({n:'🌙 Schlafqualität',s:(ci.q-1)/4,txt:ci.q+'/5'});
   const bR=base('rhr');if(bio.rhr&&bR)comps.push({n:'❤️ Ruhepuls',s:Math.max(0,Math.min(1,1-(bio.rhr-bR)/15)),txt:bio.rhr+' vs Ø '+fmt(bR)});
   const bH=base('hrv');if(bio.hrv&&bH)comps.push({n:'📈 HRV',s:Math.max(0,Math.min(1,.5+(bio.hrv-bH)/bH)),txt:bio.hrv+' vs Ø '+fmt(bH)});
   const yT=S.logs.filter(l=>l.date===dstr(1)).reduce((a,l)=>a+l.tonnage,0);
@@ -3200,7 +3210,7 @@ if(window.renderLangSelect)renderLangSelect();
     modal('<div class="mhead"><h3>✨ Diese Funktion nutzt KI</h3></div>'+
       '<p class="sub">Eintragen, Tracken und Auswerten bleibt in '+BRAND+' kostenlos. Alles mit KI – Foto-Erkennung, Rezepte, Wochenplan, Coach und Insights – gehört zum Abo.</p>'+
       '<div class="fa-price"><b class="notranslate" translate="no">'+PRICE[cur]+'</b> <span>pro Monat · jederzeit kündbar</span></div>'+
-      '<p class="sub" style="margin-top:8px">Du hast '+EV+' Pro? Dann ist das Abo für dich inklusive – einfach unter Einstellungen verbinden.</p>'+
+      '<p class="sub" style="margin-top:8px">Du hast '+EV+' Pro? Dann ist das Abo für dich inklusive – einfach unter Setup verbinden.</p>'+
       '<div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap">'+
         '<button class="btn" onclick="FitAccess.checkout(\''+cur+'\')">Abo starten</button>'+
         '<button class="btn ghost" onclick="closeModal();showTab(\'einstellungen\')">Mit '+EV+' verbinden</button>'+
@@ -3230,12 +3240,18 @@ if(window.renderLangSelect)renderLangSelect();
 
   A.link = async function(){
     var code = ($('#faCode').value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
-    var c = { sleep: $('#faC_sleep').checked, nutrition: $('#faC_nutrition').checked, training: $('#faC_training').checked, body: $('#faC_body').checked };
+    var c = { sleep: $('#faC_sleep').checked, nutrition: $('#faC_nutrition').checked, training: $('#faC_training').checked, body: $('#faC_body').checked, mind: !!($('#faC_mind')||{}).checked };
     if (code.length < 6) { toast('Bitte den Code aus Evidence eingeben.', 'err'); return; }
     if (!$('#faConsent').checked) { toast('Bitte die Einwilligung bestätigen.', 'err'); return; }
-    if (!c.sleep && !c.nutrition && !c.training && !c.body) { toast('Wähle mindestens eine Kategorie.', 'err'); return; }
+    if (!c.sleep && !c.nutrition && !c.training && !c.body && !c.mind) { toast('Wähle mindestens eine Kategorie.', 'err'); return; }
     try { var d = await call('/api/link', { code: code, consent: c }); Object.assign(st, d); toast('Mit Evidence verbunden ✓'); A.render(); A.share(true); }
     catch(e){ toast(e.message === 'code_invalid' ? 'Code unbekannt oder abgelaufen – erzeuge in Evidence einen neuen.' : 'Verbinden fehlgeschlagen.', 'err'); }
+  };
+  A.saveConsent = async function(){
+    var c = {}; ['sleep','nutrition','training','body','mind'].forEach(function(k){ var el = $('#faC_'+k); c[k] = !!(el && el.checked); });
+    if (!Object.keys(c).some(function(k){ return c[k]; })) { toast('Mindestens eine Kategorie – oder die Verbindung trennen.', 'err'); return; }
+    try { var d = await call('/api/consent', { consent: c }); st.consent = d.consent; toast('Freigabe gespeichert ✓'); A.render(); A.share(true); }
+    catch(e){ toast('Speichern fehlgeschlagen.', 'err'); }
   };
   A.unlink = async function(){
     if (!confirm('Verbindung trennen? Alle bisher geteilten Tage werden in Evidence gelöscht.')) return;
@@ -3254,6 +3270,17 @@ if(window.renderLangSelect)renderLangSelect();
     if (bio.rhr) put('rhr', +bio.rhr);
     if (bio.hrv) put('hrv', +bio.hrv);
     if (bio.gewicht) put('weightKg', +bio.gewicht);
+    if (bio.schritte) put('steps', +bio.schritte);
+    var ci = (S.checkin||{})[d] || {};
+    var hr = function(t, night){ var m = /^(\d{1,2}):(\d{2})$/.exec(t||''); if (!m) return null; var h = +m[1] + (+m[2])/60; if (night && h < 15) h += 24; return Math.round(h*100)/100; };
+    if (ci.q) put('sleepQ', +ci.q);
+    var bh = hr(ci.bed, true); if (bh != null) put('bedHour', bh);
+    var wh = hr(ci.wake, false); if (wh != null) put('wakeHour', wh);
+    ['energy','mood','stress'].forEach(function(k){ if (ci[k]) put(k, +ci[k]); });
+    if (ci.mind) put('mindMin', +ci.mind);
+    if (ci.sick) put('sick', true);
+    var caf = (S.caffeine||{})[d] || [];
+    if (caf.length) { put('caffeineMg', caf.reduce(function(a,x){ return a + (+x.mg||0); }, 0)); var lt = hr(caf[caf.length-1].t, false); if (lt != null) put('caffeineLastH', lt); }
     if (d === todayStr() && typeof readinessScore === 'function') { var rd = readinessScore(); if (rd) put('readiness', rd.score); }
     if (t.kalorien > 0) { put('kcal', Math.round(t.kalorien)); put('protein', Math.round(t.protein_g)); put('carbs', Math.round(t.kohlenhydrate_g)); put('fat', Math.round(t.fett_g)); }
     var w = (S.water||{})[d]; if (w) put('waterMl', +w);
@@ -3354,8 +3381,8 @@ if(window.renderLangSelect)renderLangSelect();
     var label = st.plan === 'fit' ? 'Abo aktiv' : st.plan === 'evidence-pro' ? 'Inklusive über '+EV+' Pro' : 'Kostenlos';
     var until = st.until && st.plan === 'fit' ? ' · läuft bis '+new Date(st.until).toLocaleDateString('de-DE') : '';
     var cur = defaultCurrency();
-    var cats = [['sleep','😴 Schlaf & Readiness','Schlafdauer, Readiness, Ruhepuls, HRV'],['nutrition','🍽 Ernährung','kcal, Makros, Wasser, Alkohol'],
-                ['training','🏋️ Training','trainiert ja/nein, Einheiten, Tonnage'],['body','⚖️ Körper','Gewicht']];
+    var cats = [['sleep','😴 Schlaf & Readiness','Schlafdauer, -qualität, Zubettgeh-/Aufstehzeit, Readiness, Ruhepuls, HRV'],['nutrition','🍽 Ernährung','kcal, Makros, Wasser, Koffein, Alkohol'],
+                ['training','🏋️ Training','trainiert ja/nein, Einheiten, Tonnage, Schritte'],['mind','🧠 Stimmung & Stress','Energie, Stimmung, Stress, Achtsamkeit, krank'],['body','⚖️ Körper','Gewicht']];
     var c = st.consent || {};
     box.innerHTML =
       '<h2 style="margin-top:0">⭐ Abo & '+EV+'</h2>'+
@@ -3369,7 +3396,9 @@ if(window.renderLangSelect)renderLangSelect();
       '<div class="fa-sep"></div>'+
       (st.linked
         ? '<b>Mit '+EV+' Trading verbunden</b>'+
-          '<p class="sub">Geteilt wird: '+cats.filter(function(x){ return c[x[0]]; }).map(function(x){ return x[1]; }).join(' · ')+'. Notizen, Fotos und Rezepte bleiben immer hier.</p>'+
+          '<p class="sub" style="margin-bottom:4px">Was geteilt wird – jederzeit änderbar. Notizen, Fotos und Rezepte bleiben immer hier.</p>'+
+          '<div class="fa-cats">'+cats.map(function(x){ return '<label><input type="checkbox" id="faC_'+x[0]+'"'+(c[x[0]]?' checked':'')+'> <b>'+x[1]+'</b> <span class="sub" style="margin:0">'+x[2]+'</span></label>'; }).join('')+'</div>'+
+          '<button class="btn sm" onclick="FitAccess.saveConsent()">Freigabe speichern</button> '+
           '<button class="btn ghost" onclick="FitAccess.unlink()">Verbindung trennen & geteilte Daten löschen</button>'
         : '<b>Mit '+EV+' Trading verbinden</b>'+
           '<p class="sub">So sieht '+EV+', wie Schlaf, Essen und Training mit deinem Trading zusammenhängen. In '+EV+': Einstellungen → Connect → '+BRAND+' → Code erzeugen.</p>'+
@@ -3399,6 +3428,129 @@ if(window.renderLangSelect)renderLangSelect();
   var prevSave = window._onSave;
   window._onSave = function(){ try { if (prevSave) prevSave.apply(this, arguments); } finally { A.share(false); } };
   A.render();
+})();
+</script>
+<script>
+/* ═══════════════════ Schlaf & Check-in (24.10.2026) ═══════════════════
+   Ein Tages-Check-in auf dem Dashboard: wann ins Bett, wann auf, wie gut
+   geschlafen, Energie/Stimmung/Stress (1–5), Koffein mit Uhrzeit,
+   Achtsamkeit, krank. Die Nacht gehört zum Aufwach-Tag.
+   Speicher: S.checkin[datum] = {bed,wake,q,energy,mood,stress,mind,sick,_t}
+             S.caffeine[datum] = [{id,mg,t,name}]
+   Schlafdauer aus Bett/Aufstehen landet in der Biometrie (schlaf), solange
+   dort nichts von Hand eingetragen ist.
+   ═════════════════════════════════════════════════════════════════════ */
+(function(){
+  'use strict';
+  var C = window.FitCheckin = {};
+  var SCALES = {
+    q:      ['Schlafqualität', ['😫','😕','😐','🙂','😴'], ['sehr schlecht','schlecht','okay','gut','sehr gut']],
+    energy: ['Energie',        ['🪫','😮‍💨','😐','⚡','🚀'], ['leer','müde','normal','fit','voller Energie']],
+    mood:   ['Stimmung',       ['😞','🙁','😐','🙂','😄'], ['sehr schlecht','gedrückt','neutral','gut','sehr gut']],
+    stress: ['Stress',         ['🧘','🙂','😐','😬','🤯'], ['entspannt','leicht','mittel','hoch','sehr hoch']]
+  };
+  var CAF = [['☕ Kaffee',80],['Espresso',60],['🥤 Energy',80],['🍵 Tee',40],['💥 Pre-Workout',200]];
+  function today(){ return todayStr(); }
+  function ci(d){ S.checkin = S.checkin || {}; return S.checkin[d] || (S.checkin[d] = {}); }
+  function esc(x){ return String(x==null?'':x).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function nowHM(){ var n = new Date(); return String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0'); }
+  /* Schlafdauer in Stunden aus "HH:MM"-Paaren; über Mitternacht korrekt. Rein, getestet über C.hours. */
+  C.hours = function(bed, wake){
+    var p = function(t){ var m = /^(\d{1,2}):(\d{2})$/.exec(t||''); return m ? (+m[1])*60 + (+m[2]) : null; };
+    var b = p(bed), w = p(wake); if (b == null || w == null) return null;
+    var min = w - b; if (min <= 0) min += 1440;
+    return min > 16*60 ? null : Math.round(min/60*10)/10;
+  };
+  function syncSleep(d){
+    var x = ci(d), h = C.hours(x.bed, x.wake); if (h == null) return;
+    var bio = S.biometrics.find(function(b){ return b.date === d; });
+    if (!bio) { bio = { date: d }; S.biometrics.push(bio); }
+    if (!bio.schlaf || bio.schlafSrc === 'checkin') { bio.schlaf = h; bio.schlafSrc = 'checkin'; }
+  }
+  C.set = function(k, v){
+    var d = today(), x = ci(d);
+    if (k === 'sick') x.sick = !x.sick;
+    else if (k === 'mind') x.mind = Math.max(0, Math.min(600, +v || 0)) || undefined;
+    else if (k === 'bed' || k === 'wake') x[k] = v || undefined;
+    else x[k] = (x[k] === v) ? undefined : v;            // gleiche Stufe nochmal = abwählen
+    x._t = Date.now();
+    if (k === 'bed' || k === 'wake') syncSleep(d);
+    save(); C.render();
+    if (k === 'bed' || k === 'wake' || k === 'q') { try { if (typeof renderDash === 'function') renderDash(); } catch(e){} }
+  };
+  C.addCaf = function(name, mg){
+    var d = today(); S.caffeine = S.caffeine || {};
+    (S.caffeine[d] = S.caffeine[d] || []).push({ id: 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2,5), mg: +mg, t: nowHM(), name: name });
+    save(); C.render(); toast(name.replace(/^\S+\s/,'') + ' · ' + mg + ' mg ✓');
+  };
+  C.addCafCustom = function(){
+    var v = prompt('Koffein in mg (z. B. 120):'); if (!v) return;
+    var mg = Math.round(+String(v).replace(',','.')); if (!(mg > 0 && mg < 1000)) { toast('Bitte eine Zahl zwischen 1 und 999.', 'err'); return; }
+    C.addCaf('Eigener Eintrag', mg);
+  };
+  C.delCaf = function(id){
+    var d = today(); S.caffeine[d] = (S.caffeine[d]||[]).filter(function(x){ return x.id !== id; });
+    (S.tomb = S.tomb || {})['caf:' + id] = Date.now(); save(); C.render();
+  };
+  function scale(k){
+    var sc = SCALES[k], cur = ci(today())[k];
+    return '<div class="ck-row"><span class="ck-l">' + sc[0] + '</span><div class="ck-sc">' +
+      sc[1].map(function(e, i){ var v = i + 1;
+        return '<button class="ck-b' + (cur === v ? ' on' : '') + '" title="' + esc(sc[2][i]) + '" aria-label="' + esc(sc[0] + ': ' + sc[2][i]) + '" onclick="FitCheckin.set(\'' + k + '\',' + v + ')">' + e + '</button>'; }).join('') +
+      '</div><span class="ck-v">' + (cur ? esc(sc[2][cur-1]) : '') + '</span></div>';
+  }
+  function week(){
+    var out = [];
+    for (var i = 6; i >= 0; i--) {
+      var d = new Date(Date.now() - i*864e5).toISOString().slice(0,10);
+      var b = S.biometrics.find(function(x){ return x.date === d; }) || {}, q = ((S.checkin||{})[d]||{}).q;
+      var h = +b.schlaf || 0, pct = Math.min(100, h/10*100);
+      var col = !h ? 'var(--line,#ccc)' : h < 6 ? 'var(--err)' : h < 7 ? 'var(--warn)' : 'var(--acc2)';
+      out.push('<div class="ck-n" title="' + d + (h ? ' · ' + h + ' h' : '') + (q ? ' · Qualität ' + q + '/5' : '') + '"><i style="height:' + pct + '%;background:' + col + '"></i><span>' +
+        ['So','Mo','Di','Mi','Do','Fr','Sa'][new Date(d+'T12:00').getDay()] + '</span></div>');
+    }
+    return out.join('');
+  }
+  C.render = function(){
+    var el = document.getElementById('checkinCard'); if (!el) return;
+    var d = today(), x = ci(d), h = C.hours(x.bed, x.wake);
+    var caf = (S.caffeine||{})[d] || [], mg = caf.reduce(function(a, c){ return a + (+c.mg||0); }, 0);
+    var late = caf.filter(function(c){ return (c.t||'') >= '14:00'; }).length;
+    el.innerHTML =
+      '<h2 style="margin-top:0">🌙 Schlaf &amp; Check-in</h2>' +
+      '<div class="grid g2" style="gap:10px">' +
+        '<div><label>Ins Bett (gestern)</label><input type="time" value="' + esc(x.bed||'') + '" onchange="FitCheckin.set(\'bed\',this.value)"></div>' +
+        '<div><label>Aufgestanden</label><input type="time" value="' + esc(x.wake||'') + '" onchange="FitCheckin.set(\'wake\',this.value)"></div>' +
+      '</div>' +
+      (h != null ? '<p class="sub" style="margin:6px 0 0">Geschlafen: <b>' + String(h).replace('.', ',') + ' h</b>' + (h < 6 ? ' – zu wenig für einen klaren Kopf' : '') + '</p>' : '') +
+      '<div class="ck-week">' + week() + '</div>' +
+      scale('q') + scale('energy') + scale('mood') + scale('stress') +
+      '<div class="ck-sep"></div>' +
+      '<div class="row" style="justify-content:space-between;align-items:baseline"><b>☕ Koffein heute</b><span class="sub" style="margin:0">' + mg + ' mg' +
+        (mg > 400 ? ' · <span style="color:var(--err)">über 400 mg</span>' : '') + '</span></div>' +
+      '<div class="ck-caf">' + CAF.map(function(c){ return '<button class="btn sm ghost" onclick="FitCheckin.addCaf(\'' + c[0] + '\',' + c[1] + ')">' + c[0] + ' <span class="sub" style="margin:0">' + c[1] + '</span></button>'; }).join('') +
+        '<button class="btn sm ghost" onclick="FitCheckin.addCafCustom()">＋ mg</button></div>' +
+      (caf.length ? '<div class="ck-list">' + caf.map(function(c){ return '<span class="ck-chip">' + esc(c.t) + ' · ' + esc(c.name) + ' ' + c.mg + ' mg <button aria-label="Löschen" onclick="FitCheckin.delCaf(\'' + c.id + '\')">×</button></span>'; }).join('') + '</div>' : '') +
+      (late ? '<p class="sub" style="margin:4px 0 0">Koffein nach 14 Uhr kann den Schlaf heute Nacht verkürzen.</p>' : '') +
+      '<div class="ck-sep"></div>' +
+      '<div class="row" style="gap:10px;align-items:flex-end;flex-wrap:wrap">' +
+        '<div style="flex:1;min-width:120px"><label style="margin-top:0">🧘 Achtsamkeit (min)</label><input type="number" min="0" max="600" value="' + esc(x.mind||'') + '" onchange="FitCheckin.set(\'mind\',this.value)"></div>' +
+        '<button class="btn sm ' + (x.sick ? '' : 'ghost') + '" onclick="FitCheckin.set(\'sick\')">' + (x.sick ? '🤒 Krank (aktiv)' : '🤒 Heute krank') + '</button>' +
+      '</div>';
+  };
+  var css = document.createElement('style');
+  css.textContent = '.ck-row{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}.ck-l{width:110px;font-size:13px}' +
+    '.ck-sc{display:flex;gap:4px}.ck-b{border:1px solid var(--line,rgba(127,127,127,.25));background:transparent;border-radius:9px;width:36px;height:34px;font-size:17px;cursor:pointer;padding:0}' +
+    '.ck-b.on{border-color:var(--acc,#c9481f);background:color-mix(in srgb,var(--acc,#c9481f) 16%,transparent)}.ck-v{font-size:12px;color:var(--mut,#888)}' +
+    '.ck-sep{height:1px;background:var(--line,rgba(127,127,127,.2));margin:14px 0 10px}' +
+    '.ck-caf{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.ck-list{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}' +
+    '.ck-chip{font-size:12px;border:1px solid var(--line,rgba(127,127,127,.25));border-radius:99px;padding:3px 4px 3px 10px}.ck-chip button{border:0;background:none;cursor:pointer;font-size:14px;color:inherit;padding:0 4px}' +
+    '.ck-week{display:flex;gap:6px;align-items:flex-end;height:58px;margin:10px 0 2px}.ck-n{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;height:100%;justify-content:flex-end}' +
+    '.ck-n i{display:block;width:100%;max-width:26px;border-radius:5px 5px 2px 2px;min-height:3px}.ck-n span{font-size:10px;color:var(--mut,#888)}' +
+    '@media(max-width:520px){.ck-l{width:100%}.ck-b{width:40px;height:38px}}';
+  document.head.appendChild(css);
+  var _rd = renderDash; renderDash = function(){ _rd.apply(this, arguments); try { C.render(); } catch(e){} };
+  try { C.render(); } catch(e){}
 })();
 </script>
 </body>
