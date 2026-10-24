@@ -1,5 +1,6 @@
 /* Evidence Fit — Zugang, Abo, Einwilligung (24.10.2026). */
 import { decidePlan, filterDay, cleanConsent, verifyIdToken, verifyStripe, handleAccess } from '../worker/access.js';
+import { periodEnd } from '../worker/access.js';
 import { summarize, isAdminEmail } from '../worker/admin.js';
 import { handleAdmin } from '../worker/admin.js';
 import { webcrypto } from 'node:crypto';
@@ -69,6 +70,8 @@ await t('admin: summary from state', () => {
   ok(r.name === 'A' && r.mealDays === 2 && r.workouts === 1 && r.bio === 1 && r.lastDay === '2026-10-05', JSON.stringify(r));
 });
 await t('admin: broken state does not crash', () => ok(summarize('{kaputt').bytes === 7 && summarize('').bytes === 0));
+
+await t('stripe: period end from items (new API) or top level (old)', () => ok(periodEnd({ items: { data: [{ current_period_end: 2000 }] } }) === 2e6 && periodEnd({ current_period_end: 1000 }) === 1e6 && periodEnd(null) === 0));
 
 console.log(fail ? fail + ' failed' : 'Evidence Fit access: all tests passed');
 process.exit(fail ? 1 : 0);
