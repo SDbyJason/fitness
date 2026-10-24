@@ -3438,7 +3438,14 @@ if(window.renderLangSelect)renderLangSelect();
   document.head.appendChild(css);
 
   // Nach Login und nach Rückkehr vom Checkout den Stand holen; nach jedem Speichern teilen.
-  try { firebase.auth().onAuthStateChanged(function(u){ if (u) { A.refresh(); setTimeout(A.askConsent, 4000); } }); } catch(e){}
+  /* Firebase wird erst nachgeladen (loadScript) — beim Start dieses Moduls
+     gibt es firebase oft noch nicht. Darum warten, statt still zu scheitern:
+     sonst wurden Plan, Pro-Anzeige und Freigabe nie geladen. */
+  (function hook(n){
+    if (window.firebase && firebase.auth) {
+      firebase.auth().onAuthStateChanged(function(u){ if (u) { A.refresh(); setTimeout(A.askConsent, 4000); } });
+    } else if (n < 120) setTimeout(function(){ hook(n + 1); }, 250);
+  })(0);
   if (/abo=ok/.test(location.hash)) { setTimeout(function(){ toast('Danke! Dein Abo ist aktiv.'); A.refresh(); }, 1500); history.replaceState(null,'',location.pathname); }
   var prevSave = window._onSave;
   window._onSave = function(){ try { if (prevSave) prevSave.apply(this, arguments); } finally { A.share(false); } };
