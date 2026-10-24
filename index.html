@@ -3201,9 +3201,23 @@ if(window.renderLangSelect)renderLangSelect();
     if (!(window.firebase && firebase.auth().currentUser)) return;
     try { var d = await call('/api/access'); Object.assign(st, d, { loaded:true, err:'' }); }
     catch(e){ st.loaded = true; st.err = e.status === 503 ? '' : 'Status konnte nicht geladen werden.'; }
-    A.render();
+    A.render(); A.chip();
   };
   A.plan = function(){ return st.plan; };
+  /* Plan-Anzeige unter dem Logo (24.10.2026): Free · Pro (Abo) · Pro über Evidence.
+     Klick führt zur Karte „Abo & Evidence“ im Setup. */
+  A.chip = function(){
+    var logo = document.querySelector('nav .logo'); if (!logo) return;
+    var el = document.getElementById('faChip');
+    if (!el) { el = document.createElement('button'); el.id = 'faChip'; el.type = 'button';
+      el.onclick = function(){ showTab('einstellungen'); var c = document.getElementById('faCard'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+      logo.insertAdjacentElement('afterend', el); }
+    var pro = st.plan === 'fit' || st.plan === 'evidence-pro';
+    el.className = 'fa-chip' + (pro ? ' pro' : '');
+    el.innerHTML = st.plan === 'evidence-pro' ? '✨ Pro · über <span class="notranslate" translate="no">Evidence</span>'
+      : st.plan === 'fit' ? '✨ Pro' : 'Free · KI mit Pro freischalten';
+    el.title = pro ? 'Alle KI-Funktionen freigeschaltet' : 'Tracken ist frei. KI-Funktionen mit Abo oder Evidence Pro.';
+  };
 
   A.paywall = function(){
     var cur = defaultCurrency();
@@ -3378,7 +3392,7 @@ if(window.renderLangSelect)renderLangSelect();
       if (after && after.nextElementSibling && after.nextElementSibling.classList.contains('sub')) after = after.nextElementSibling;   // Untertitel mitnehmen
       if (after) after.insertAdjacentElement('afterend', box); else tab.insertBefore(box, tab.firstChild);
     }
-    var label = st.plan === 'fit' ? 'Abo aktiv' : st.plan === 'evidence-pro' ? 'Inklusive über '+EV+' Pro' : 'Kostenlos';
+    var label = st.plan === 'fit' ? '✨ Pro – Abo aktiv' : st.plan === 'evidence-pro' ? '✨ Pro – inklusive über '+EV+' Pro' : 'Kostenlos (Tracking)';
     var until = st.until && st.plan === 'fit' ? ' · läuft bis '+new Date(st.until).toLocaleDateString('de-DE') : '';
     var cur = defaultCurrency();
     var cats = [['sleep','😴 Schlaf & Readiness','Schlafdauer, -qualität, Zubettgeh-/Aufstehzeit, Readiness, Ruhepuls, HRV'],['nutrition','🍽 Ernährung','kcal, Makros, Wasser, Koffein, Alkohol'],
@@ -3413,6 +3427,7 @@ if(window.renderLangSelect)renderLangSelect();
   css.textContent = '.fa-price{font-size:15px;margin-top:10px}.fa-price b{font-size:22px}'+
     '#faCancel{position:fixed;inset:0;z-index:700;background:var(--body-bg);display:none;align-items:center;justify-content:center;padding:20px;overflow-y:auto}#faCancel.show{display:flex}'+
     '.fa-consent{display:flex;gap:8px;align-items:flex-start;text-transform:none;letter-spacing:normal;font-weight:400;font-size:12px;line-height:1.5}.fa-consent input{width:auto;margin-top:3px;flex:none}'+
+    '.fa-chip{display:block;margin:-6px 0 12px;padding:4px 10px;border-radius:99px;border:1px solid var(--line,rgba(127,127,127,.3));background:transparent;color:var(--mut,#888);font-size:11px;cursor:pointer;text-align:left;width:fit-content}.fa-chip.pro{border-color:var(--acc,#c9481f);color:var(--acc,#c9481f);font-weight:600}' +
     '.fa-sep{height:1px;background:var(--line,rgba(127,127,127,.2));margin:14px 0}'+
     '.fa-cats{display:grid;gap:6px;margin:10px 0}.fa-cats label{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;font-size:13px}'+
     '.fa-consent{display:flex;gap:8px;align-items:flex-start;font-size:12px;line-height:1.5;margin:8px 0 12px}'+

@@ -1,5 +1,5 @@
 /* Evidence Fit Service Worker – Offline-Cache + Web Push */
-const CACHE = 'apexfit-v8';  // Präfix bleibt (Cache-Namen der Nutzer), Version für das Umbenennen erhöht
+const CACHE = 'apexfit-v9';  // Präfix bleibt (Cache-Namen der Nutzer), Version für das Umbenennen erhöht
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
