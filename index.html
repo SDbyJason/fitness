@@ -275,6 +275,7 @@ td{padding:8px 6px;border-top:1px solid var(--line)}
       </div>
       <div id="hero3d"></div>
     </div>
+    <div class="card" id="evCard" style="margin:18px 0 4px;display:none"></div>
     <h2>Heute</h2>
     <div class="grid g4" id="dashRings"></div>
     <div class="grid g2" style="margin-top:16px">
@@ -730,7 +731,10 @@ const persist = ()=>{try{localStorage.setItem('apexfit',JSON.stringify(S));}
 const save = ()=>{S._updatedAt=Date.now();persist();window._onSave?.();};
 const $ = s=>document.querySelector(s);
 const uid = ()=>Math.random().toString(36).slice(2,10);
-const todayStr = ()=>new Date().toISOString().slice(0,10);
+/* Kalendertag in ORTSZEIT (vorher UTC: Einträge zwischen 0 und 1/2 Uhr landeten am Vortag). */
+const localDay = (dt)=>{dt=dt||new Date();return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');};
+const daysAgo = (i)=>{const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()-i);return localDay(d);};
+const todayStr = ()=>localDay();
 const fmt = (n,d=0)=>(+n||0).toFixed(d).replace('.',',');
 const esc = s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -994,7 +998,7 @@ function renderNogos(){$('#nogoChips').innerHTML=S.prefs.nogos.map((n,i)=>
 function eatingBehavior(){
   const count={};let tage=0;
   for(let i=0;i<14;i++){
-    const d=new Date(Date.now()-i*864e5).toISOString().slice(0,10);
+    const d=daysAgo(i);
     const ms=S.meals[d]||[];if(ms.length)tage++;
     ms.forEach(m=>(m.items||[]).forEach(it=>{const n=(it.name||'').trim();if(n)count[n]=(count[n]||0)+1;}));
   }
@@ -1100,7 +1104,7 @@ function renderRecipes(){
 
 /* ═══════════ TIPPS ═══════════ */
 function last7Summary(){
-  const days=[];for(let i=0;i<7;i++){const d=new Date(Date.now()-i*864e5).toISOString().slice(0,10);
+  const days=[];for(let i=0;i<7;i++){const d=daysAgo(i);
     const t=dayTotals(d);if(t.kalorien>0)days.push({datum:d,...t});}
   return days;
 }
@@ -1511,7 +1515,7 @@ function renderDash(){
   $('#bioGewicht').value=b.gewicht||S.profile.gewicht||'';$('#bioKfa').value=b.kfa||'';
   $('#bioRhr').value=b.rhr||'';$('#bioSchlaf').value=b.schlaf||'';$('#bioSchritte').value=b.schritte||'';
   const week=S.logs.filter(l=>Date.now()-new Date(l.date)<7*864e5);
-  const streak=(()=>{let n=0;for(let i=0;i<60;i++){const d=new Date(Date.now()-i*864e5).toISOString().slice(0,10);
+  const streak=(()=>{let n=0;for(let i=0;i<60;i++){const d=daysAgo(i);
     if((S.meals[d]||[]).length||S.logs.some(l=>l.date===d))n++;else if(i>0)break;}return n;})();
   const supD=S.supplements.filter(s=>s.genommen[todayStr()]).length;
   $('#dashStats').innerHTML=`<h2 style="margin-top:0">⚡ Woche im Blick</h2>
@@ -2241,7 +2245,7 @@ renderWeekPlan();renderCharts();renderWater();updatePushStatus();updateFitbitSta
 
 <script>
 /* ═══════════════════ Evidence Fit PRO: Korrelations-Engine · Adaptive Ziele · Readiness · Volumen-Landmarken · Gamification ═══════════════════ */
-const dstr=i=>new Date(Date.now()-i*864e5).toISOString().slice(0,10);
+const dstr=i=>daysAgo(i);
 // KI-Call ohne Fullscreen-Loader (für proaktive Hintergrund-Aufgaben)
 async function aiSilent(task,payload={}){
   const url=(S.workerUrl||'').trim().replace(/\/$/,'');if(!url)throw new Error('no worker');
@@ -3201,9 +3205,10 @@ if(window.renderLangSelect)renderLangSelect();
     if (!(window.firebase && firebase.auth().currentUser)) return;
     try { var d = await call('/api/access'); Object.assign(st, d, { loaded:true, err:'' }); }
     catch(e){ st.loaded = true; st.err = e.status === 503 ? '' : 'Status konnte nicht geladen werden.'; }
-    A.render(); A.chip();
+    A.render(); A.chip(); A.status(); if (st.linked) setTimeout(function(){ A.backfill(false); }, 5000);
   };
   A.plan = function(){ return st.plan; };
+  A._st = function(){ return st; };   // zum Prüfen (Konsole/Tests)
   /* Plan-Anzeige unter dem Logo (24.10.2026): Free · Pro (Abo) · Pro über Evidence.
      Klick führt zur Karte „Abo & Evidence“ im Setup. */
   A.chip = function(){
@@ -3258,13 +3263,13 @@ if(window.renderLangSelect)renderLangSelect();
     if (code.length < 6) { toast('Bitte den Code aus Evidence eingeben.', 'err'); return; }
     if (!$('#faConsent').checked) { toast('Bitte die Einwilligung bestätigen.', 'err'); return; }
     if (!c.sleep && !c.nutrition && !c.training && !c.body && !c.mind) { toast('Wähle mindestens eine Kategorie.', 'err'); return; }
-    try { var d = await call('/api/link', { code: code, consent: c }); Object.assign(st, d); toast('Mit Evidence verbunden ✓'); A.render(); A.share(true); }
+    try { var d = await call('/api/link', { code: code, consent: c }); Object.assign(st, d); toast('Mit Evidence verbunden ✓'); A.render(); A.backfill(true); }
     catch(e){ toast(e.message === 'code_invalid' ? 'Code unbekannt oder abgelaufen – erzeuge in Evidence einen neuen.' : 'Verbinden fehlgeschlagen.', 'err'); }
   };
   A.saveConsent = async function(){
     var c = {}; ['sleep','nutrition','training','body','mind'].forEach(function(k){ var el = $('#faC_'+k); c[k] = !!(el && el.checked); });
     if (!Object.keys(c).some(function(k){ return c[k]; })) { toast('Mindestens eine Kategorie – oder die Verbindung trennen.', 'err'); return; }
-    try { var d = await call('/api/consent', { consent: c }); st.consent = d.consent; toast('Freigabe gespeichert ✓'); A.render(); A.share(true); }
+    try { var d = await call('/api/consent', { consent: c }); st.consent = d.consent; toast('Freigabe gespeichert ✓'); A.render(); A.backfill(true); }
     catch(e){ toast('Speichern fehlgeschlagen.', 'err'); }
   };
   A.unlink = async function(){
@@ -3298,21 +3303,108 @@ if(window.renderLangSelect)renderLangSelect();
     if (d === todayStr() && typeof readinessScore === 'function') { var rd = readinessScore(); if (rd) put('readiness', rd.score); }
     if (t.kalorien > 0) { put('kcal', Math.round(t.kalorien)); put('protein', Math.round(t.protein_g)); put('carbs', Math.round(t.kohlenhydrate_g)); put('fat', Math.round(t.fett_g)); }
     var w = (S.water||{})[d]; if (w) put('waterMl', +w);
-    put('alcoholDrinks', +((S.alcohol||{})[d] || 0));
-    put('trained', logs.length > 0);
+    var alc = (S.alcohol||{})[d];
     if (logs.length) { put('sessions', logs.length); put('tonnage', Math.round(logs.reduce(function(a,l){ return a+(+l.tonnage||0); },0))); }
+    /* Ein Tag ohne jeden Eintrag ist „nicht getrackt“, nicht „0 Drinks, kein Training“ —
+       sonst zählt Evidence leere Tage als nüchterne Ruhetage und verzerrt Edge & Leaks. */
+    if (Object.keys(o).length === 1 && alc == null) return null;
+    put('alcoholDrinks', +(alc || 0));
+    put('trained', logs.length > 0);
     return o;
   }
   A.summary = summary;
-  var _shareT = null, _lastShare = '';
+  var _shareT = null, _lastShare = '', _filling = false;
+  function lsKey(){ var u = window.firebase && firebase.auth().currentUser; return 'fitShare_' + (u ? u.uid : ''); }
+  function shareInfo(){ try { return JSON.parse(localStorage.getItem(lsKey()) || '{}'); } catch(e){ return {}; } }
+  function setInfo(o){ try { localStorage.setItem(lsKey(), JSON.stringify(Object.assign(shareInfo(), o))); } catch(e){} }
+  /* Alle Tage, an denen irgendetwas getrackt wurde. */
+  function trackedDays(){
+    var set = {};
+    (S.biometrics||[]).forEach(function(b){ if (b.date) set[b.date] = 1; });
+    (S.logs||[]).forEach(function(l){ if (l.date) set[l.date] = 1; });
+    [S.meals, S.checkin, S.caffeine, S.water, S.alcohol].forEach(function(m){ Object.keys(m||{}).forEach(function(k){ if (/^\d{4}-\d{2}-\d{2}$/.test(k)) set[k] = 1; }); });
+    return Object.keys(set).sort();
+  }
   A.share = function(now){
     if (!st.linked) return;
     clearTimeout(_shareT);
     _shareT = setTimeout(async function(){
-      var days = [0,1,2].map(function(i){ return summary(new Date(Date.now()-i*864e5).toISOString().slice(0,10)); });
-      var sig = JSON.stringify(days); if (sig === _lastShare) return;
-      try { await call('/api/share', { days: days }); _lastShare = sig; } catch(e){}
+      var days = [0,1,2].map(function(i){ return summary(daysAgo(i)); }).filter(Boolean);
+      var sig = JSON.stringify(days); if (!days.length || sig === _lastShare) return;
+      try { await call('/api/share', { days: days }); _lastShare = sig; setInfo({ last: Date.now() }); A.status(); } catch(e){}
     }, now ? 300 : 15000);
+  };
+  /* Den ganzen Verlauf senden — nach dem Verbinden, nach geänderter Freigabe und
+     wöchentlich. Vorher kamen nur die letzten 3 Tage an: Evidence startete leer und
+     Edge & Leaks hatte wochenlang zu wenig Tage für eine Aussage. Der Worker nimmt
+     höchstens 14 Tage pro Aufruf — also in Paketen. */
+  A.backfill = async function(force){
+    if (!st.linked || _filling) return;
+    var info = shareInfo();
+    if (!force && info.full && Date.now() - info.full < 7*864e5) return;
+    var days = trackedDays().map(summary).filter(Boolean);
+    if (!days.length) return;
+    _filling = true; st.filling = { done: 0, total: days.length }; A.status();
+    var sent = 0;
+    try {
+      for (var i = 0; i < days.length; i += 14) {
+        var d = await call('/api/share', { days: days.slice(i, i + 14) });
+        sent += (d && d.written) || 0; st.filling.done = Math.min(days.length, i + 14); A.status();
+      }
+      setInfo({ full: Date.now(), last: Date.now(), days: days.length, first: days[0].date });
+      if (force) toast(sent + ' Tage an Evidence gesendet ✓');
+    } catch(e){ if (force) toast('Senden unterbrochen – versuche es gleich noch einmal.', 'err'); }
+    _filling = false; st.filling = null; A.status();
+  };
+  /* Trading-Ampel für heute: dieselben Bedingungen, die Evidence an den Trades
+     prüft (Schlaf < 6,5 h, Alkohol am Vortag, Readiness < 50, Stress ≥ 4,
+     schlecht geschlafen, nach Mitternacht ins Bett). Zwei oder mehr = rot. */
+  A.light = function(){
+    var t = summary(todayStr()) || {}, y = summary(daysAgo(1)) || {}, why = [];
+    if (t.sleepH != null && t.sleepH < 6.5) why.push('nur ' + String(t.sleepH).replace('.', ',') + ' h Schlaf');
+    if (y.alcoholDrinks > 0) why.push(y.alcoholDrinks + ' Drink' + (y.alcoholDrinks > 1 ? 's' : '') + ' gestern');
+    if (t.readiness != null && t.readiness < 50) why.push('Readiness ' + t.readiness);
+    if (t.stress != null && t.stress >= 4) why.push('hoher Stress');
+    if (t.sleepQ != null && t.sleepQ <= 2) why.push('schlecht geschlafen');
+    if (t.bedHour != null && t.bedHour >= 24) why.push('nach Mitternacht ins Bett');
+    if (t.sick) why.push('krank');
+    var known = t.sleepH != null || t.readiness != null || t.sleepQ != null || t.stress != null;
+    if (!known && !why.length) return { lvl: 'none' };
+    var lvl = why.length >= 2 || t.sick ? 'red' : why.length ? 'yellow' : 'green';
+    return { lvl: lvl, why: why };
+  };
+  function lightHtml(){
+    var L = A.light(), txt = {
+      green: ['🟢', 'Bereit zum Traden', 'Kein bekannter Störfaktor heute. Handle nach Plan.'],
+      yellow: ['🟡', 'Mit Vorsicht traden', 'Ein Faktor, der Trader messbar schlechter macht. Halte dich streng an deine Regeln.'],
+      red: ['🔴', 'Heute klein oder gar nicht', 'Mehrere Störfaktoren zugleich. Kleinere Größe, weniger Trades – oder heute nur beobachten.'],
+      none: ['⚪', 'Noch keine Daten für heute', 'Trag Schlaf oder den Morgen-Check-in ein, dann siehst du hier deine Trading-Ampel.']
+    }[L.lvl];
+    return '<div class="ev-light ev-' + L.lvl + '"><span class="ev-dot">' + txt[0] + '</span><div><b>' + txt[1] + '</b>' +
+      (L.why && L.why.length ? ' <span class="sub" style="margin:0">· ' + L.why.join(' · ') + '</span>' : '') +
+      '<div class="sub" style="margin:2px 0 0">' + txt[2] + '</div></div></div>';
+  }
+  A.lightHtml = lightHtml;
+
+  /* Zeile im Setup + Karte im Dashboard: was Evidence von hier hat. */
+  A.status = function(){
+    var i = shareInfo(), when = function(t){ return t ? new Date(t).toLocaleString('de-DE', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '–'; };
+    var line = st.filling ? 'Sende Verlauf … ' + st.filling.done + ' / ' + st.filling.total + ' Tage'
+      : i.days ? i.days + ' Tage an ' + EV + ' gesendet' + (i.first ? ' (seit ' + new Date(i.first + 'T12:00:00').toLocaleDateString('de-DE') + ')' : '') + ' · zuletzt ' + when(i.last)
+      : 'Noch nichts gesendet.';
+    var el = document.getElementById('faSync'); if (el) el.innerHTML = line;
+    var card = document.getElementById('evCard'); if (!card) return;
+    if (!st.loaded) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    card.innerHTML = st.linked
+      ? '<h2 style="margin-top:0">📈 Trading heute</h2>' + lightHtml() +
+        '<p class="sub" style="margin:12px 0 10px">Verbunden mit ' + EV + ' Trading: Schlaf, Check-in, Ernährung und Training landen neben deinen Trades. ' + EV + ' testet dort, ob z. B. wenig Schlaf, Alkohol am Vortag oder Stress dein Trading messbar verschlechtert (Edge & Leaks).</p>' +
+        '<div class="sub" style="margin:0 0 10px" id="faSyncDash">' + line + '</div>' +
+        '<div class="row"><button class="btn sm" onclick="FitAccess.backfill(true)"' + (st.filling ? ' disabled' : '') + '>Jetzt alles senden</button>' +
+        '<a class="btn ghost sm" href="https://evidencetrading.com/app.html" target="_blank" rel="noopener">' + EV + ' öffnen ↗</a></div>'
+      : '<h2 style="margin-top:0">📈 Tradest du?</h2>' +
+        '<p class="sub" style="margin:4px 0 10px">Verbinde ' + BRAND + ' mit ' + EV + ' Trading: Dein Journal zeigt dann, an welchen Tagen Schlaf, Stress oder Alkohol dich Geld kosten. Mit ' + EV + ' Pro sind alle KI-Funktionen hier inklusive.</p>' +
+        '<button class="btn sm" onclick="showTab(\'einstellungen\');setTimeout(function(){var c=document.getElementById(\'faCard\');if(c)c.scrollIntoView({behavior:\'smooth\',block:\'start\'});},80)">Verbinden</button>';
   };
 
   /* Einwilligung für Bestandsnutzer (registriert vor dem 24.10.2026). */
@@ -3410,6 +3502,7 @@ if(window.renderLangSelect)renderLangSelect();
       '<div class="fa-sep"></div>'+
       (st.linked
         ? '<b>Mit '+EV+' Trading verbunden</b>'+
+          '<p class="sub" id="faSync" style="margin:4px 0 2px"></p>'+
           '<p class="sub" style="margin-bottom:4px">Was geteilt wird – jederzeit änderbar. Notizen, Fotos und Rezepte bleiben immer hier.</p>'+
           '<div class="fa-cats">'+cats.map(function(x){ return '<label><input type="checkbox" id="faC_'+x[0]+'"'+(c[x[0]]?' checked':'')+'> <b>'+x[1]+'</b> <span class="sub" style="margin:0">'+x[2]+'</span></label>'; }).join('')+'</div>'+
           '<button class="btn sm" onclick="FitAccess.saveConsent()">Freigabe speichern</button> '+
@@ -3421,6 +3514,7 @@ if(window.renderLangSelect)renderLangSelect();
           '<label class="fa-consent"><input type="checkbox" id="faConsent"> <span>Ich willige ausdrücklich ein, dass die oben gewählten Gesundheitsdaten (Art. 9 DSGVO) an mein '+EV+'-Trading-Konto übertragen und dort ausgewertet werden. Ich kann das jederzeit widerrufen – „Trennen“ löscht die übertragenen Daten.</span></label>'+
           '<button class="btn" onclick="FitAccess.link()">Verbinden</button>')+
       '<div class="fa-sep"></div><button class="btn ghost" style="color:var(--err)" onclick="FitAccess.deleteAccount()">Konto & alle Daten löschen</button>';
+    A.status();
   };
 
   var css = document.createElement('style');
@@ -3448,7 +3542,7 @@ if(window.renderLangSelect)renderLangSelect();
   })(0);
   if (/abo=ok/.test(location.hash)) { setTimeout(function(){ toast('Danke! Dein Abo ist aktiv.'); A.refresh(); }, 1500); history.replaceState(null,'',location.pathname); }
   var prevSave = window._onSave;
-  window._onSave = function(){ try { if (prevSave) prevSave.apply(this, arguments); } finally { A.share(false); } };
+  window._onSave = function(){ try { if (prevSave) prevSave.apply(this, arguments); } finally { A.share(false); try { A.status(); } catch(e){} } };
   A.render();
 })();
 </script>
@@ -3524,7 +3618,7 @@ if(window.renderLangSelect)renderLangSelect();
   function week(){
     var out = [];
     for (var i = 6; i >= 0; i--) {
-      var d = new Date(Date.now() - i*864e5).toISOString().slice(0,10);
+      var d = daysAgo(i);
       var b = S.biometrics.find(function(x){ return x.date === d; }) || {}, q = ((S.checkin||{})[d]||{}).q;
       var h = +b.schlaf || 0, pct = Math.min(100, h/10*100);
       var col = !h ? 'var(--line,#ccc)' : h < 6 ? 'var(--err)' : h < 7 ? 'var(--warn)' : 'var(--acc2)';
@@ -3583,10 +3677,15 @@ if(window.renderLangSelect)renderLangSelect();
 .a3-fail>.a3-canvas{display:none}
 .a3-stage>.a3-canvas{-webkit-mask-image:radial-gradient(ellipse 50% 50% at 50% 50%,#000 66%,transparent 99%);mask-image:radial-gradient(ellipse 50% 50% at 50% 50%,#000 66%,transparent 99%)}
 section.tab.f3-on{position:relative}
+.ev-light{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:16px;border:1px solid var(--line);background:var(--bg2)}
+.ev-light .ev-dot{font-size:22px;line-height:1}
+.ev-light.ev-green{border-color:rgba(63,143,107,.45);background:rgba(63,143,107,.08)}
+.ev-light.ev-yellow{border-color:rgba(212,175,55,.5);background:rgba(212,175,55,.08)}
+.ev-light.ev-red{border-color:rgba(192,57,43,.5);background:rgba(192,57,43,.08)}
 section.tab.f3-on>h1,section.tab.f3-on>p.sub{padding-right:150px}
 .f3-emblem{position:absolute;right:0;top:-14px;width:140px;height:140px;pointer-events:none;z-index:1}
 section.tab.f3-on>.mini3d{display:none}
-nav .logo.f3-has{display:flex;align-items:center;gap:10px}
+@media(min-width:861px){nav .logo.f3-has{display:flex;align-items:center;gap:10px}}
 .f3-logo{width:46px;height:46px;flex:0 0 46px;margin:-8px 0 -8px -8px}
 .f3-auth{width:120px;height:120px;margin:-10px auto 4px}
 @media(max-width:700px){section.tab.f3-on>h1,section.tab.f3-on>p.sub{padding-right:92px}.f3-emblem{width:96px;height:96px;top:-16px;right:-6px}}
