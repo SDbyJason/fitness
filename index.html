@@ -278,6 +278,7 @@ td{padding:8px 6px;border-top:1px solid var(--line)}
     <div class="card" id="evCard" style="margin:18px 0 4px;display:none"></div>
     <h2>Heute</h2>
     <div class="grid g4" id="dashRings"></div>
+    <div class="card" id="coachPlan" style="margin-top:16px"></div>
     <div class="card" id="hcDash" style="margin-top:16px;display:none"></div>
     <div class="grid g2" style="margin-top:16px">
       <div class="card">
@@ -1522,13 +1523,13 @@ function saveBio(){
   const e={date:todayStr(),gewicht:+$('#bioGewicht').value||null,kfa:+$('#bioKfa').value||null,
     rhr:+$('#bioRhr').value||null,schlaf:+$('#bioSchlaf').value||null,schritte:+$('#bioSchritte').value||null};
   S.biometrics=S.biometrics.filter(b=>b.date!==e.date);S.biometrics.push(e);
-  if(e.gewicht)S.profile.gewicht=e.gewicht;if(e.kfa)S.profile.kfa=e.kfa;
+  if(e.gewicht){S.profile.gewicht=e.gewicht;e._wManual=true;}if(e.kfa)S.profile.kfa=e.kfa;
   save();renderDash();toast('Biometrie gespeichert ✓');
 }
 function renderDash(){
   $('#dashRings').innerHTML=ringsHTML(dayTotals(todayStr()));
   const b=S.biometrics.find(x=>x.date===todayStr())||{};
-  $('#bioGewicht').value=b.gewicht||S.profile.gewicht||'';$('#bioKfa').value=b.kfa||'';
+  $('#bioGewicht').value=b.gewicht||'';$('#bioGewicht').placeholder=S.profile.gewicht?fmt(S.profile.gewicht,1):'';$('#bioKfa').value=b.kfa||'';
   $('#bioRhr').value=b.rhr||'';$('#bioSchlaf').value=b.schlaf||'';$('#bioSchritte').value=b.schritte||'';
   const week=S.logs.filter(l=>Date.now()-new Date(l.date)<7*864e5);
   const streak=(()=>{let n=0;for(let i=0;i<60;i++){const d=daysAgo(i);
@@ -2046,6 +2047,7 @@ function mergeStates(a,b){
   R.fitbitUid=newer.fitbitUid||older.fitbitUid;
   R.hcLinked=!!(a.hcLinked||b.hcLinked);R.hcSyncedAt=Math.max(a.hcSyncedAt||0,b.hcSyncedAt||0)||null;
   R._hcCloudAt=Math.max(a._hcCloudAt||0,b._hcCloudAt||0)||0;
+  R.coachPlan=newer.coachPlan??older.coachPlan??null;
   ['fasting','weeklyPlan','tips','coach','insightsAi','dailyInsight'].forEach(k=>{R[k]=newer[k]??older[k]??null;});
   // Tombstones (Löschungen) beider Seiten vereinigen – damit Gelöschtes NICHT wieder auftaucht
   R.tomb={};[a.tomb||{},b.tomb||{}].forEach(src=>{for(const k in src)R.tomb[k]=Math.max(R.tomb[k]||0,+src[k]||0);});
@@ -2367,6 +2369,140 @@ function renderHcDash(){
 // Beim Öffnen der App still nachladen (höchstens alle 30 Minuten)
 if(HC&&S.hcLinked&&Date.now()-(S.hcSyncedAt||0)>30*60e3)
   setTimeout(()=>{try{if(HC.status()==='available')hcSync(3,true);}catch(e){}},1500);
+
+/* ═══════════ ABNEHM-COACH: Plan, Wochen-Check mit Vorschlag zur Bestätigung, tägliche Hinweise ═══════════ */
+function cpFloor(){const p=S.profile||{};return Math.max(p.geschlecht==='w'?1200:1500,Math.round(hcBmr('x')*0.9/10)*10);}
+// Gewichtstrend (geglättet) aus den letzten n Tagen
+function cpTrend(n){
+  const pts=[];let ema=null;
+  for(let i=n-1;i>=0;i--){const w=+(S.biometrics.find(b=>b.date===dstr(i))||{}).gewicht;
+    if(w>0){ema=ema==null?w:ema*0.7+w*0.3;pts.push({i,ema,w});}}
+  if(pts.length<2)return {n:pts.length,now:pts.length?pts[pts.length-1].ema:null};
+  const days=pts[0].i-pts[pts.length-1].i;
+  return {n:pts.length,now:pts[pts.length-1].ema,start:pts[0].ema,days,perWeek:days>=5?(pts[pts.length-1].ema-pts[0].ema)/days*7:null};
+}
+function cpAvgSteps(n){const v=[];for(let i=1;i<=n;i++){const h=hcDay(dstr(i));if(h&&+h.steps>0)v.push(+h.steps);}return v.length?avg(v):null;}
+// Startempfehlung: Verbrauch schätzen (echter TDEE, sonst Grundumsatz × Aktivität aus Schritten) minus Defizit fürs Tempo
+function cpSuggestStart(rate){
+  const t=computeTDEE();const st=cpAvgSteps(14);
+  const factor=st==null?1.4:st<5000?1.3:st<8000?1.4:st<11000?1.55:1.7;
+  const tdee=t?t.tdee:Math.round(hcBmr('x')*factor);
+  const w=+S.profile.gewicht||80,deficit=Math.round(w*rate/100*7700/7);
+  return {tdee,src:t?'aus deinem Gewichtsverlauf':'geschätzt'+(st?` (Ø ${fmt(st)} Schritte)`:''),kcal:Math.max(cpFloor(),Math.round((tdee-deficit)/10)*10),deficit};
+}
+function cpMacros(kcal){
+  const w=+S.profile.zielgewicht||+S.profile.gewicht||80;
+  const prot=Math.round(w*2.2),fett=Math.round(w*0.8);
+  return {kalorien:kcal,protein:prot,fett,kohlenhydrate:Math.max(50,Math.round((kcal-prot*4-fett*9)/4))};
+}
+function cpStart(){
+  const zg=+($('#cpGoal')||{}).value||+S.profile.zielgewicht;const rate=+($('#cpRate')||{}).value||0.75;
+  if(!zg)return toast('Bitte ein Zielgewicht eintragen','err');
+  const tr0=cpTrend(14),w=+(tr0.now||S.profile.gewicht||80).toFixed(1);if(zg>=w)return toast('Das Zielgewicht muss unter deinem aktuellen Gewicht liegen','err');
+  const s=cpSuggestStart(rate);
+  if(!confirm(`Abnehm-Plan starten?\n\nVerbrauch: ${fmt(s.tdee)} kcal (${s.src})\nDefizit: ${fmt(s.deficit)} kcal/Tag (${String(rate).replace('.',',')} % pro Woche)\n→ neues Tagesziel: ${fmt(s.kcal)} kcal\nProtein ${cpMacros(s.kcal).protein} g\n\nDer Coach prüft jede Woche deinen Fortschritt und schlägt Anpassungen vor – du bestätigst sie.`))return;
+  S.profile.zielgewicht=zg;S.profile.ziel='Fettabbau';
+  S.coachPlan={active:true,start:todayStr(),startWeight:w,goal:zg,rate,lastWeek:isoWeekStr(),pending:null,history:[{date:todayStr(),from:S.targets.kalorien,to:s.kcal,reason:'Plan gestartet',ok:true}]};
+  S.targets=cpMacros(s.kcal);S.prefs.adaptive=false; // der Coach übernimmt die Anpassung (mit Bestätigung)
+  save();renderDash();renderNutrition();toast('🎯 Abnehm-Plan aktiv · '+fmt(s.kcal)+' kcal/Tag');
+}
+function cpStop(){if(!confirm('Abnehm-Plan beenden? Deine aktuellen Ziele bleiben.'))return;S.coachPlan.active=false;save();renderDash();}
+// Wöchentlicher Check (läuft automatisch 1× pro Woche beim Öffnen)
+function cpWeekly(force){
+  const P=S.coachPlan;if(!P||!P.active)return;
+  if(!force&&P.lastWeek===isoWeekStr())return;
+  if(P.pending)return; // erst den offenen Vorschlag beantworten
+  if(!force&&(Date.now()-new Date(P.start))/864e5<7)return; // erste Woche abwarten
+  const tr=cpTrend(14),w=tr.now||+S.profile.gewicht;
+  const goalRate=-(w*P.rate/100); // kg pro Woche (negativ)
+  const logged=[];for(let i=1;i<=7;i++){const d=dstr(i);if(d<P.start)continue;const k=dayTotals(d).kalorien;if(k>600)logged.push(k);}
+  const kcal=S.targets.kalorien,floor=cpFloor();
+  let prop=null;
+  P.lastWeek=isoWeekStr();
+  if(tr.now&&tr.now<=P.goal+0.3){
+    prop={kind:'goal',kcal:Math.round((kcal+Math.round(w*P.rate/100*7700/7))/10)*10,reason:`🎉 Ziel erreicht (${fmt(tr.now,1)} kg)! Vorschlag: auf Erhaltung hochgehen, damit du das Gewicht hältst.`};
+  }else if(tr.perWeek==null||tr.n<5){
+    prop={kind:'info',reason:`Zu wenig Wiegedaten (${tr.n} in 14 Tagen). Wiege dich möglichst jeden Morgen – Samsung-Waage oder hier eintragen.`};
+  }else if(logged.length<4){
+    prop={kind:'info',reason:`Nur ${logged.length} von 7 Tagen getrackt. Ohne vollständiges Tracking kann ich nicht sicher sagen, ob die Kalorien passen – keine Änderung.`};
+  }else{
+    const avgIn=avg(logged),over=avgIn-kcal;
+    const r=tr.perWeek,txt=`Trend ${r>0?'+':''}${fmt(r,2)} kg/Woche, Ziel ${fmt(goalRate,2)} kg/Woche`;
+    if(over>200){
+      prop={kind:'info',reason:`${txt}. Du lagst im Schnitt ${fmt(over)} kcal über deinem Ziel (Ø ${fmt(avgIn)}). Das Ziel passt – es kommt aufs Einhalten an. Keine Änderung.`};
+    }else if(r>goalRate*0.5){ // zu langsam (weniger als halbes Zieltempo)
+      const step=r>=0?150:100;
+      if(kcal-step>=floor)prop={kind:'kcal',kcal:kcal-step,reason:`${txt} – das ist zu langsam. Vorschlag: −${step} kcal pro Tag.`};
+      else prop={kind:'steps',steps:(S.prefs.stepGoal||10000)+1500,reason:`${txt} – zu langsam, aber deine Kalorien sind schon an der sicheren Untergrenze (${fmt(floor)}). Vorschlag: Schritt-Ziel um 1.500 erhöhen.`};
+    }else if(r<goalRate*1.6&&r<-(w*0.01)){ // deutlich zu schnell (>1 % pro Woche)
+      prop={kind:'kcal',kcal:kcal+150,reason:`${txt} – das ist zu schnell (Muskelverlust-Risiko). Vorschlag: +150 kcal pro Tag.`};
+    }else prop={kind:'info',reason:`${txt} – du bist voll im Plan. 💪 Weiter so, keine Änderung.`};
+  }
+  P.pending={...prop,date:todayStr(),from:kcal};
+  if(prop.kind==='info'){P.history.unshift({date:todayStr(),from:kcal,to:kcal,reason:prop.reason,ok:true});}
+  save();
+}
+function cpAnswer(ok){
+  const P=S.coachPlan,p=P&&P.pending;if(!p)return;
+  if(ok&&p.kind==='kcal'||ok&&p.kind==='goal'){S.targets=cpMacros(p.kcal);if(p.kind==='goal')P.active=false;}
+  if(ok&&p.kind==='steps')S.prefs.stepGoal=p.steps;
+  if(p.kind!=='info')P.history.unshift({date:todayStr(),from:p.from,to:ok&&p.kcal?p.kcal:p.from,reason:p.reason+(ok?' ✓ übernommen':' ✕ abgelehnt'),ok});
+  P.pending=null;save();renderDash();renderNutrition();
+  toast(ok&&p.kind!=='info'?'✓ Übernommen – neues Ziel '+fmt(S.targets.kalorien)+' kcal':'OK');
+}
+// Tägliche Hinweise (ohne KI, aus deinen Daten)
+function cpTodayTips(){
+  const t=todayStr(),tips=[],now=new Date().getHours();
+  const tot=dayTotals(t),burn=hcEatBack()?hcBurn(t):0,goal=S.targets.kalorien+burn,rest=goal-tot.kalorien;
+  const protRest=S.targets.protein-tot.protein_g;
+  const h=hcDay(t)||{},steps=+h.steps||0,sg=S.prefs.stepGoal||10000;
+  const bio=S.biometrics.find(b=>b.date===t)||{};
+  if(!(+bio.gewicht>0&&(bio.health&&bio.health.weight_kg||bio._wManual))&&now<12)tips.push('⚖️ Heute noch nicht gewogen – morgens nach dem Aufstehen ist am genauesten.');
+  if(tot.kalorien===0&&now>=11)tips.push('🍽️ Noch nichts getrackt. Erfasse dein Essen mit dem KI-Scanner – sonst kann der Coach nicht richtig steuern.');
+  if(rest<0)tips.push(`🛑 Du bist ${fmt(-rest)} kcal über deinem Tagesziel. Kein Drama – morgen normal weiter, nicht hungern.`);
+  else if(now>=17&&tot.kalorien>0)tips.push(`🍽️ Noch ${fmt(rest)} kcal für heute${protRest>15?`, davon idealerweise ${fmt(protRest)} g Protein (z. B. Skyr, Hähnchen, Magerquark)`:''}.`);
+  else if(protRest>40&&now>=14)tips.push(`🥩 Noch ${fmt(protRest)} g Protein offen – Protein hält satt und schützt deine Muskeln im Defizit.`);
+  if(steps>0&&steps<sg&&now>=15)tips.push(`👟 Noch ${fmt(sg-steps)} Schritte bis zum Ziel – ein ${Math.round((sg-steps)/110)}-Minuten-Spaziergang reicht.`);
+  else if(steps>=sg)tips.push(`✅ Schritt-Ziel geschafft (${fmt(steps)})!`);
+  const sl=(hcDay(t)||{}).sleep_min||(hcDay(dstr(1))||{}).sleep_min;
+  if(sl&&sl<360)tips.push(`😴 Nur ${fmt(sl/60,1)} h Schlaf – das steigert Heißhunger. Heute bewusst eiweißreich essen und früher ins Bett.`);
+  return tips;
+}
+function renderCoachPlan(){
+  const box=$('#coachPlan');if(!box)return;
+  const P=S.coachPlan;
+  if(!P||!P.active){
+    const w=+S.profile.gewicht||80,zg=+S.profile.zielgewicht||'';
+    box.innerHTML=`<h2 style="margin-top:0">🎯 Abnehm-Coach</h2>
+      <p class="sub" style="margin:0 0 10px">Der Coach berechnet dein Kalorienziel, prüft jede Woche deinen Gewichtstrend (inkl. Samsung-Health-Daten) und schlägt Anpassungen vor – du bestätigst nur noch.</p>
+      <div class="row"><div><label>Zielgewicht kg</label><input type="number" step="0.1" id="cpGoal" value="${zg}" placeholder="z. B. ${Math.round(w*0.9)}" style="max-width:130px"></div>
+      <div><label>Tempo</label><select id="cpRate" style="max-width:230px"><option value="0.5">entspannt (0,5 % / Woche)</option><option value="0.75" selected>empfohlen (0,75 % / Woche)</option><option value="1">schnell (1 % / Woche)</option></select></div>
+      <button class="btn" style="margin-top:20px" onclick="cpStart()">🚀 Plan starten</button></div>
+      <p class="sub" style="font-size:12px;margin:8px 0 0">Aktuelles Gewicht laut Profil: ${fmt(w,1)} kg – bitte vorher im Setup aktualisieren.</p>`;
+    return;
+  }
+  cpWeekly(false);
+  const tr=cpTrend(14),now=tr.now||+S.profile.gewicht;
+  const done=Math.max(0,Math.min(1,(P.startWeight-now)/(P.startWeight-P.goal)));
+  const rate=tr.perWeek;let eta='';
+  if(rate&&rate<-0.05){const wk=(now-P.goal)/-rate;if(wk<200)eta=new Date(Date.now()+wk*7*864e5).toLocaleDateString('de-DE',{day:'numeric',month:'long',year:'numeric'});}
+  const plan=new Date(Date.now()+((now-P.goal)/(now*P.rate/100))*7*864e5).toLocaleDateString('de-DE',{day:'numeric',month:'long',year:'numeric'});
+  const p=P.pending,tips=cpTodayTips();
+  box.innerHTML=`<div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">🎯 Abnehm-Coach</h2>
+      <span class="sub" style="font-size:12px">seit ${new Date(P.start).toLocaleDateString('de-DE')} · <a href="#" style="color:var(--mut)" onclick="cpStop();return false">beenden</a></span></div>
+    <div class="row" style="justify-content:space-between;margin-top:10px;font-size:13px"><span>${fmt(P.startWeight,1)} kg</span><b>${fmt(now,1)} kg${tr.n?'':' (Profil)'}</b><span>🎯 ${fmt(P.goal,1)} kg</span></div>
+    <div style="height:10px;border-radius:6px;background:var(--line);overflow:hidden;margin:6px 0"><div style="height:100%;width:${Math.round(done*100)}%;background:var(--acc2)"></div></div>
+    <p class="sub" style="margin:0;font-size:12.5px">${fmt(Math.max(0,P.startWeight-now),1)} kg geschafft · noch ${fmt(Math.max(0,now-P.goal),1)} kg · ${rate!=null?`Trend ${rate>0?'+':''}${fmt(rate,2)} kg/Woche`:'Trend: noch zu wenig Wiegetage'}${eta?` · Prognose: <b>${eta}</b>`:` · Plan: ${plan}`}</p>
+    ${p?`<div class="card" style="margin-top:12px;border-left:4px solid ${p.kind==='info'?'var(--acc2)':'var(--acc)'};padding:14px">
+      <b>📋 Wochen-Check ${new Date(p.date).toLocaleDateString('de-DE')}</b><p style="margin:6px 0 0;font-size:13.5px">${esc(p.reason)}</p>
+      ${p.kind==='kcal'||p.kind==='goal'?`<p class="sub" style="margin:4px 0 0">Neues Tagesziel: <b>${fmt(p.kcal)} kcal</b> (bisher ${fmt(p.from)})</p>`:''}
+      ${p.kind==='info'?`<button class="btn sm" style="margin-top:10px" onclick="cpAnswer(true)">👍 Verstanden</button>`:
+      `<div class="row" style="margin-top:10px"><button class="btn sm" onclick="cpAnswer(true)">✓ Übernehmen</button><button class="btn sm ghost" onclick="cpAnswer(false)">✕ Ablehnen</button></div>`}</div>`:''}
+    ${tips.length?`<div style="margin-top:12px">${tips.map(x=>`<div class="item" style="padding:8px 0"><span style="font-size:13.5px">${x}</span></div>`).join('')}</div>`:''}
+    <div class="row" style="margin-top:10px;gap:8px"><span class="sub" style="font-size:12px;margin:0">Ziel: ${fmt(S.targets.kalorien)} kcal · ${S.targets.protein} g Protein · ${fmt(S.prefs.stepGoal||10000)} Schritte</span>
+      <a href="#" style="font-size:12px;color:var(--acc)" onclick="cpWeekly(true);renderDash();return false">jetzt prüfen</a></div>
+    ${P.history&&P.history.length?`<details style="margin-top:8px"><summary class="sub" style="font-size:12px;cursor:pointer">Verlauf der Anpassungen</summary>${P.history.slice(0,12).map(h=>`<div class="item" style="padding:6px 0"><div class="t"><b style="font-size:12.5px">${new Date(h.date).toLocaleDateString('de-DE')} · ${fmt(h.from)} → ${fmt(h.to)} kcal</b><span style="font-size:12px">${esc(h.reason)}</span></div></div>`).join('')}</details>`:''}`;
+}
 
 /* ─── SETTINGS-INTEGRATION ─── */
 const _renderSettings=renderSettings;renderSettings=function(){
@@ -2978,6 +3114,7 @@ const _rd9=renderDash;renderDash=function(){_rd9();
   if(rc){rc.style.display=rd?'block':'none';if(rd)rc.innerHTML=readinessHTML(rd,true);}
   renderMeasure();renderAchievements();renderCycle();renderDailyInsightCard();
   try{renderHcDash();}catch(e){}
+  try{renderCoachPlan();}catch(e){console.error(e)}
 };
 const _sb9=saveBio;saveBio=function(){_sb9();
   const e=S.biometrics.find(b=>b.date===todayStr());
