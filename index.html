@@ -520,6 +520,16 @@ td{padding:8px 6px;border-top:1px solid var(--line)}
         <span class="sub" id="fitbitStatus"></span>
       </div>
     </div>
+    <div class="card" style="margin-top:16px" id="hcCard">
+      <h2 style="margin-top:0">❤️ Samsung Health</h2>
+      <p class="sub">Schritte, Schlaf (inkl. Phasen), Puls, Ruhepuls, HRV, Gewicht, Körperfett, Kalorien, Trainings, SpO₂, Blutdruck, Trinkmenge &amp; Ernährung – über Health Connect, direkt vom Handy. Nur in der Evidence-Fit-Android-App.</p>
+      <div class="row" id="hcBtns">
+        <button class="btn sm" onclick="hcConnect()">❤️ Samsung Health verbinden</button>
+        <button class="btn sm ghost" onclick="hcSync(14)">⬇️ Daten abrufen (14 Tage)</button>
+        <button class="btn sm ghost" onclick="EvidenceHealth.openSettings()">⚙️ Health Connect</button>
+      </div>
+      <span class="sub" id="hcStatus"></span>
+    </div>
     <div class="row" style="margin-top:16px">
       <button class="btn" onclick="saveSettings()">💾 Speichern</button>
       <button class="btn ghost" onclick="askNotify()">🔔 Benachrichtigungen aktivieren</button>
@@ -2027,6 +2037,7 @@ function mergeStates(a,b){
   R.pushEnabled=!!(a.pushEnabled||b.pushEnabled);
   R.onboarded=!!(a.onboarded||b.onboarded);
   R.fitbitUid=newer.fitbitUid||older.fitbitUid;
+  R.hcLinked=!!(a.hcLinked||b.hcLinked);R.hcSyncedAt=Math.max(a.hcSyncedAt||0,b.hcSyncedAt||0)||null;
   ['fasting','weeklyPlan','tips','coach','insightsAi','dailyInsight'].forEach(k=>{R[k]=newer[k]??older[k]??null;});
   // Tombstones (Löschungen) beider Seiten vereinigen – damit Gelöschtes NICHT wieder auftaucht
   R.tomb={};[a.tomb||{},b.tomb||{}].forEach(src=>{for(const k in src)R.tomb[k]=Math.max(R.tomb[k]||0,+src[k]||0);});
@@ -2183,11 +2194,70 @@ if(location.hash.startsWith('#fitbit=')){
   toast('⌚ Fitbit verbunden ✓');
 }
 
+/* ─── SAMSUNG HEALTH (Health Connect, nur in der Android-App) ─── */
+const HC=window.EvidenceHealth||null;
+let _hcQuiet=false;
+function updateHcStatus(){
+  const el=$('#hcStatus'),btns=$('#hcBtns');if(!el)return;
+  if(!HC){el.textContent='📱 Nur in der Evidence-Fit-Android-App verfügbar';if(btns)btns.style.display='none';return;}
+  const st=HC.status();
+  el.textContent=st==='update_required'?'Health Connect muss aktualisiert werden – „verbinden“ öffnet den Play Store':
+    st!=='available'?'Health Connect ist auf diesem Gerät nicht verfügbar':
+    S.hcLinked?'Verbunden ✓'+(S.hcSyncedAt?' · zuletzt '+new Date(S.hcSyncedAt).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):''):'Nicht verbunden';
+}
+function hcConnect(){if(!HC)return toast('Nur in der Android-App','err');HC.requestPermissions();}
+function hcSync(days,quiet){
+  if(!HC)return toast('Nur in der Android-App','err');
+  _hcQuiet=!!quiet;if(!quiet)loading(true,'Samsung-Health-Daten werden geladen…');
+  HC.sync(days||14);
+}
+const hcH=min=>min?Math.round(min/6)/10:null;
+window.onEvidenceHealth=function(m){
+  if(m.type==='permissions'){
+    if(m.granted>0){S.hcLinked=true;save();toast(`❤️ Samsung Health verbunden (${m.granted}/${m.total} Datenarten)`);hcSync(30);}
+    else toast('Keine Berechtigung erteilt','err');
+    updateHcStatus();return;
+  }
+  loading(false);
+  const quiet=_hcQuiet;_hcQuiet=false;
+  if(m.type==='error'){
+    if(m.code==='no_permissions'){S.hcLinked=false;save();}
+    if(!quiet)toast('Samsung Health: '+m.message,'err');
+    updateHcStatus();return;
+  }
+  if(m.type!=='data')return;
+  let n=0;
+  for(const d of m.days||[]){
+    if(Object.keys(d).length<2)continue;n++;
+    const e=S.biometrics.find(b=>b.date===d.date)||{date:d.date};
+    if(d.steps!=null)e.schritte=d.steps;
+    if(d.rhr!=null)e.rhr=d.rhr;
+    if(d.sleep_min)e.schlaf=hcH(d.sleep_min);
+    if(d.hrv_ms!=null)e.hrv=Math.round(d.hrv_ms);
+    if(d.weight_kg!=null)e.gewicht=d.weight_kg;
+    if(d.body_fat_pct!=null)e.kfa=d.body_fat_pct;
+    const h=Object.assign({},d,{src:'samsung_health'});delete h.date;
+    e.health=h; // alle Rohwerte (Kalorien, Puls, Schlafphasen, Trainings, SpO₂, Blutdruck, …)
+    S.biometrics=S.biometrics.filter(b=>b.date!==d.date);S.biometrics.push(e);
+  }
+  const rev=[...(m.days||[])].reverse();
+  const w=rev.find(d=>d.weight_kg!=null);if(w)S.profile.gewicht=w.weight_kg;
+  const f=rev.find(d=>d.body_fat_pct!=null);if(f)S.profile.kfa=f.body_fat_pct;
+  if(m.height_cm)S.profile.groesse=m.height_cm;
+  S.biometrics.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
+  S.hcLinked=true;S.hcSyncedAt=Date.now();save();renderDash();updateHcStatus();
+  if(!quiet){const t=(m.days||[]).find(d=>d.date===todayStr())||{};
+    toast(`❤️ ${n} Tage übernommen · heute ${t.steps??'–'} Schritte · Schlaf ${hcH(t.sleep_min)??'–'} h`);}
+};
+// Beim Öffnen der App still nachladen (höchstens alle 30 Minuten)
+if(HC&&S.hcLinked&&Date.now()-(S.hcSyncedAt||0)>30*60e3)
+  setTimeout(()=>{try{if(HC.status()==='available')hcSync(3,true);}catch(e){}},1500);
+
 /* ─── SETTINGS-INTEGRATION ─── */
 const _renderSettings=renderSettings;renderSettings=function(){
   _renderSettings();
   const pp=$('#setPlanPush');if(pp)pp.value=S.planPushTime||'06:30';
-  updateFitbitStatus();updatePushStatus();updateSyncStatus();
+  updateFitbitStatus();updatePushStatus();updateSyncStatus();updateHcStatus();
 };
 const _saveSettings=saveSettings;saveSettings=function(){
   S.planPushTime=$('#setPlanPush').value||'06:30';
@@ -2240,7 +2310,7 @@ const _showTab2=showTab;showTab=function(id){_showTab2(id);setTimeout(()=>window
 
 /* ─── INIT ─── */
 initFirebase();
-renderWeekPlan();renderCharts();renderWater();updatePushStatus();updateFitbitStatus();
+renderWeekPlan();renderCharts();renderWater();updatePushStatus();updateFitbitStatus();updateHcStatus();
 </script>
 
 <script>
