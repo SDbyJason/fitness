@@ -2209,7 +2209,20 @@ let _hcQuiet=false;
 function hcH(min){return min?Math.round(min/6)/10:null;}
 function hcDay(d){return (S.biometrics.find(b=>b.date===d)||{}).health||null;}
 function hcEatBack(){return S.prefs.hcEatBack!==false;}
-function hcBurn(d){const h=hcDay(d);return h&&h.kcal_active?Math.round(h.kcal_active):0;}
+// Grundumsatz (Mifflin-St Jeor) aus dem Profil, für heute anteilig bis jetzt
+function hcBmr(d){const p=S.profile||{};const w=+p.gewicht||80,hgt=+p.groesse||180,a=+p.alter||25;
+  const day=10*w+6.25*hgt-5*a+(p.geschlecht==='w'?-161:5);
+  if(d!==todayStr())return day;const n=new Date();return day*((n.getHours()*60+n.getMinutes())/1440);}
+// Aktiv verbrannte kcal: Samsung-Wert, sonst Gesamt minus Grundumsatz, sonst aus Schritten/Distanz geschätzt
+function hcActive(d){const h=hcDay(d);if(!h)return {kcal:0,how:null};
+  if(+h.kcal_active>0)return {kcal:Math.round(h.kcal_active),how:'samsung'};
+  const p=S.profile||{},w=+p.gewicht||80;
+  const fromTotal=+h.kcal_total>0?Math.round(h.kcal_total-hcBmr(d)):0;
+  const km=+h.distance_km>0?+h.distance_km:(+h.steps||0)*0.415*(+p.groesse||180)/100/1000;
+  const fromSteps=Math.round(km*w*0.5); // Gehen ≈ 0,5 kcal pro kg und km zusätzlich zum Grundumsatz
+  if(fromTotal>=fromSteps&&fromTotal>0)return {kcal:fromTotal,how:'total'};
+  return {kcal:fromSteps,how:fromSteps?'steps':null};}
+function hcBurn(d){return hcActive(d).kcal;}
 function hcBgInfo(){try{return HC&&HC.backgroundInfo?JSON.parse(HC.backgroundInfo()):null;}catch(e){return null;}}
 function updateHcStatus(){
   const el=$('#hcStatus'),btns=$('#hcBtns');if(!el)return;
@@ -2302,7 +2315,7 @@ const WORKOUT_ICON={Laufen:'🏃',Gehen:'🚶',Wandern:'🥾',Radfahren:'🚴',K
 function hcTile(icon,label,val,sub){return `<div class="micro" style="padding:10px 12px"><span style="font-size:12px;color:var(--mut)">${icon} ${label}</span><b style="display:block;font-size:18px;margin-top:2px">${val}</b>${sub?`<span style="font-size:11px;color:var(--mut)">${sub}</span>`:''}</div>`;}
 function hcBars(key,label,unit,color){
   const days=Array.from({length:7},(_,i)=>dstr(6-i));
-  const vals=days.map(d=>+((hcDay(d)||{})[key])||0);const mx=Math.max(...vals,1);
+  const vals=days.map(d=>key==='kcal_active'?hcActive(d).kcal:(+((hcDay(d)||{})[key])||0));const mx=Math.max(...vals,1);
   return `<div><span class="sub" style="font-size:12px">${label} · 7 Tage (Ø ${fmt(avg(vals.filter(Boolean)))} ${unit})</span>
     <div style="display:flex;align-items:flex-end;gap:6px;height:64px;margin-top:6px">${vals.map((v,i)=>`<div title="${days[i]}: ${fmt(v)} ${unit}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
       <div style="width:100%;height:${Math.max(3,v/mx*52)}px;background:${color};border-radius:5px;opacity:${i===6?1:.55}"></div>
@@ -2315,13 +2328,15 @@ function renderHcDash(){
   if(!any){box.style.display='none';return;}
   box.style.display='block';
   const stepGoal=S.prefs.stepGoal||10000,steps=+h.steps||0;
-  const eaten=dayTotals(t).kalorien,burn=+h.kcal_active||0,goal=S.targets.kalorien+(hcEatBack()?burn:0);
+  const act=hcActive(t),eaten=dayTotals(t).kalorien,burn=act.kcal,goal=S.targets.kalorien+(hcEatBack()?burn:0);
+  const howTxt={samsung:'laut Samsung Health',total:'Gesamt '+fmt(h.kcal_total)+' − Grundumsatz '+fmt(hcBmr(t)),steps:'geschätzt aus '+fmt(steps)+' Schritten'}[act.how]||'';
   const rest=Math.round(goal-eaten);
   const sl=h.sleep_min?h:(y.sleep_min?y:null);
   const stage=(k,c,n)=>sl&&sl[k]?`<div style="flex:${sl[k]};background:${c};height:10px" title="${n} ${hcH(sl[k])} h"></div>`:'';
   const tiles=[
     hcTile('👟','Schritte',fmt(steps),`${Math.round(steps/stepGoal*100)} % von ${fmt(stepGoal)}`),
-    hcTile('🔥','Aktiv verbrannt',fmt(burn)+' kcal',h.kcal_total?'gesamt '+fmt(h.kcal_total)+' kcal':''),
+    hcTile('🔥','Aktiv verbrannt',(act.how&&act.how!=='samsung'?'≈ ':'')+fmt(burn)+' kcal',howTxt),
+    h.kcal_total?hcTile('⚡','Gesamtumsatz bisher',fmt(h.kcal_total)+' kcal','inkl. Grundumsatz'):'',
     h.distance_km!=null?hcTile('📏','Distanz',fmt(h.distance_km,2)+' km',h.floors?h.floors+' Etagen':''):'',
     h.hr_avg!=null?hcTile('💓','Puls Ø',h.hr_avg+' bpm',`${h.hr_min??'–'}–${h.hr_max??'–'} bpm`):'',
     h.rhr!=null?hcTile('❤️','Ruhepuls',h.rhr+' bpm',''):'',
