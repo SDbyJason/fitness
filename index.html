@@ -2352,7 +2352,7 @@ function renderHcDash(){
     h.weight_kg!=null?hcTile('⚖️','Gewicht',fmt(h.weight_kg,1)+' kg',h.body_fat_pct!=null?'KFA '+fmt(h.body_fat_pct,1)+' %':''):'',
     h.food_kcal!=null?hcTile('🍽️','In Samsung Health gegessen',fmt(h.food_kcal)+' kcal',`P ${fmt(h.food_protein_g)} · K ${fmt(h.food_carbs_g)} · F ${fmt(h.food_fat_g)} g`):''
   ].join('');
-  const wos=(h.workouts||[]);
+  const wos=Array.from({length:7},(_,i)=>dstr(i)).flatMap(d=>((hcDay(d)||{}).workouts||[]).map(w=>({...w,d})));
   box.innerHTML=`<div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">❤️ Aktivität &amp; Gesundheit</h2>
       <span class="sub" style="font-size:12px">Samsung Health${S.hcSyncedAt?' · '+new Date(S.hcSyncedAt).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):''}${HC?` · <a href="#" style="color:var(--acc)" onclick="hcSync(3);return false">aktualisieren</a>`:''}</span></div>
     <div class="item" style="border-bottom:none;padding-bottom:4px"><div class="t"><b>🔥 Kalorienbilanz heute</b>
@@ -2362,7 +2362,7 @@ function renderHcDash(){
     <div class="grid g4" style="gap:10px">${tiles}</div>
     ${sl?`<div style="margin-top:14px"><span class="sub" style="font-size:12px">😴 Schlaf ${fmt(hcH(sl.sleep_min),1)} h${sl===y?' (letzte Nacht)':''}${sl.sleep_deep_min?` · Tief ${fmt(hcH(sl.sleep_deep_min),1)} h · REM ${fmt(hcH(sl.sleep_rem_min),1)} h · Leicht ${fmt(hcH(sl.sleep_light_min),1)} h · Wach ${fmt(hcH(sl.sleep_awake_min),1)} h`:''}</span>
       ${sl.sleep_deep_min?`<div style="display:flex;border-radius:6px;overflow:hidden;margin-top:6px">${stage('sleep_deep_min','#4a3aa8','Tief')}${stage('sleep_rem_min','#7d5ba6','REM')}${stage('sleep_light_min','#9db8e8','Leicht')}${stage('sleep_awake_min','#d15525','Wach')}</div>`:''}</div>`:''}
-    ${wos.length?`<div style="margin-top:14px"><span class="sub" style="font-size:12px">Trainings heute (Samsung Health)</span>${wos.map(w=>`<div class="item"><div class="t"><b>${WORKOUT_ICON[w.type]||'💪'} ${esc(w.title||w.type)}</b><span>${new Date(w.start).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})} · ${w.min} min</span></div></div>`).join('')}</div>`:''}
+    ${wos.length?`<div style="margin-top:14px"><span class="sub" style="font-size:12px">Trainings der letzten 7 Tage (Samsung Health)</span>${wos.map(w=>`<div class="item"><div class="t"><b>${WORKOUT_ICON[w.type]||'💪'} ${esc(w.title||w.type)}</b><span>${new Date(w.start).toLocaleString('de-DE',{weekday:'short',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})} · ${w.min} min</span></div></div>`).join('')}</div>`:''}
     <div class="grid g2" style="gap:16px;margin-top:14px">${hcBars('steps','👟 Schritte','','var(--acc2)')}${hcBars('kcal_active','🔥 Aktive kcal','kcal','var(--acc)')}</div>`;
 }
 
@@ -2438,16 +2438,18 @@ function cpWeekly(force){
       prop={kind:'kcal',kcal:kcal+150,reason:`${txt} – das ist zu schnell (Muskelverlust-Risiko). Vorschlag: +150 kcal pro Tag.`};
     }else prop={kind:'info',reason:`${txt} – du bist voll im Plan. 💪 Weiter so, keine Änderung.`};
   }
+  prop=cpWeeklyExtra(P,prop,tr,kcal);
   P.pending={...prop,date:todayStr(),from:kcal};
   if(prop.kind==='info'){P.history.unshift({date:todayStr(),from:kcal,to:kcal,reason:prop.reason,ok:true});}
   save();
 }
 function cpAnswer(ok){
   const P=S.coachPlan,p=P&&P.pending;if(!p)return;
-  if(ok&&p.kind==='kcal'||ok&&p.kind==='goal'){S.targets=cpMacros(p.kcal);if(p.kind==='goal')P.active=false;}
+  if(ok&&(p.kind==='kcal'||p.kind==='goal'||p.kind==='break')){S.targets=cpMacros(p.kcal);if(p.kind==='goal')P.active=false;if(p.kind==='break')cpBreakAccepted(P,p);}
   if(ok&&p.kind==='steps')S.prefs.stepGoal=p.steps;
   if(p.kind!=='info')P.history.unshift({date:todayStr(),from:p.from,to:ok&&p.kcal?p.kcal:p.from,reason:p.reason+(ok?' ✓ übernommen':' ✕ abgelehnt'),ok});
   P.pending=null;save();renderDash();renderNutrition();
+  if(ok&&p.kcal&&p.kcal!==p.from&&S.weeklyPlan&&(S.weeklyPlan.tage||[]).length)setTimeout(()=>{if(confirm('Dein Wochen-Essensplan passt nicht mehr zum neuen Ziel. Jetzt neu erstellen (inkl. Einkaufsliste)?'))genWeeklyPlan();},400);
   toast(ok&&p.kind!=='info'?'✓ Übernommen – neues Ziel '+fmt(S.targets.kalorien)+' kcal':'OK');
 }
 // Tägliche Hinweise (ohne KI, aus deinen Daten)
@@ -2493,15 +2495,98 @@ function renderCoachPlan(){
     <div class="row" style="justify-content:space-between;margin-top:10px;font-size:13px"><span>${fmt(P.startWeight,1)} kg</span><b>${fmt(now,1)} kg${tr.n?'':' (Profil)'}</b><span>🎯 ${fmt(P.goal,1)} kg</span></div>
     <div style="height:10px;border-radius:6px;background:var(--line);overflow:hidden;margin:6px 0"><div style="height:100%;width:${Math.round(done*100)}%;background:var(--acc2)"></div></div>
     <p class="sub" style="margin:0;font-size:12.5px">${fmt(Math.max(0,P.startWeight-now),1)} kg geschafft · noch ${fmt(Math.max(0,now-P.goal),1)} kg · ${rate!=null?`Trend ${rate>0?'+':''}${fmt(rate,2)} kg/Woche`:'Trend: noch zu wenig Wiegetage'}${eta?` · Prognose: <b>${eta}</b>`:` · Plan: ${plan}`}</p>
+    ${P.breakUntil?`<p style="margin:8px 0 0;font-size:13px">🌴 <b>Diet-Break</b> bis ${new Date(P.breakUntil).toLocaleDateString('de-DE')} – iss auf Erhaltung, danach geht's automatisch zurück ins Defizit (mit Bestätigung).</p>`:''}
     ${p?`<div class="card" style="margin-top:12px;border-left:4px solid ${p.kind==='info'?'var(--acc2)':'var(--acc)'};padding:14px">
       <b>📋 Wochen-Check ${new Date(p.date).toLocaleDateString('de-DE')}</b><p style="margin:6px 0 0;font-size:13.5px">${esc(p.reason)}</p>
-      ${p.kind==='kcal'||p.kind==='goal'?`<p class="sub" style="margin:4px 0 0">Neues Tagesziel: <b>${fmt(p.kcal)} kcal</b> (bisher ${fmt(p.from)})</p>`:''}
+      ${p.kind==='kcal'||p.kind==='goal'||p.kind==='break'?`<p class="sub" style="margin:4px 0 0">Neues Tagesziel: <b>${fmt(p.kcal)} kcal</b> (bisher ${fmt(p.from)})</p>`:''}
       ${p.kind==='info'?`<button class="btn sm" style="margin-top:10px" onclick="cpAnswer(true)">👍 Verstanden</button>`:
       `<div class="row" style="margin-top:10px"><button class="btn sm" onclick="cpAnswer(true)">✓ Übernehmen</button><button class="btn sm ghost" onclick="cpAnswer(false)">✕ Ablehnen</button></div>`}</div>`:''}
     ${tips.length?`<div style="margin-top:12px">${tips.map(x=>`<div class="item" style="padding:8px 0"><span style="font-size:13.5px">${x}</span></div>`).join('')}</div>`:''}
+    ${cpExtraHTML(P,Math.max(0,P.startWeight-now))}
     <div class="row" style="margin-top:10px;gap:8px"><span class="sub" style="font-size:12px;margin:0">Ziel: ${fmt(S.targets.kalorien)} kcal · ${S.targets.protein} g Protein · ${fmt(S.prefs.stepGoal||10000)} Schritte</span>
       <a href="#" style="font-size:12px;color:var(--acc)" onclick="cpWeekly(true);renderDash();return false">jetzt prüfen</a></div>
     ${P.history&&P.history.length?`<details style="margin-top:8px"><summary class="sub" style="font-size:12px;cursor:pointer">Verlauf der Anpassungen</summary>${P.history.slice(0,12).map(h=>`<div class="item" style="padding:6px 0"><div class="t"><b style="font-size:12.5px">${new Date(h.date).toLocaleDateString('de-DE')} · ${fmt(h.from)} → ${fmt(h.to)} kcal</b><span style="font-size:12px">${esc(h.reason)}</span></div></div>`).join('')}</details>`:''}`;
+}
+
+/* ─── Coach-Ausbau: Essensideen, Diet-Break, Taille, Wasser, Meilensteine, Wochenbericht ─── */
+function cpRest(){const t=todayStr(),tot=dayTotals(t),burn=hcEatBack()?hcBurn(t):0;
+  return {kcal:Math.round(S.targets.kalorien+burn-tot.kalorien),prot:Math.round(S.targets.protein-tot.protein_g)};}
+async function cpMealIdeas(){
+  const r=cpRest();if(r.kcal<150)return toast('Dein Tagesbudget ist fast aufgebraucht – heute lieber nichts mehr oder Gemüse/Eiweiß pur.','err');
+  const ctx=prefsContext();
+  ctx.hinweis=`WICHTIG: Ich habe heute nur noch ${r.kcal} kcal übrig und brauche noch ${Math.max(0,r.prot)} g Protein. Erzeuge 3 schnelle, sehr sättigende Gerichte (je 1 Portion), die JEWEILS höchstens ${r.kcal} kcal haben und möglichst viel Protein (Ziel ≥ ${Math.max(25,Math.min(r.prot,70))} g). Viel Volumen (Gemüse), wenig Fett.`;
+  let res=await aiCall('recipes',{context:ctx},`Gerichte für deine restlichen ${r.kcal} kcal…`);
+  window._genRecipes=(res.rezepte||[]).filter(x=>!nogoHits(x).length);rememberNames(window._genRecipes.map(x=>x.name));
+  showTab('rezepte');renderRecipes();toast(`🍳 ${window._genRecipes.length} Ideen für ${r.kcal} kcal`);
+  $('#recipeBoxTitle')?.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function cpWaistTrend(days){const m=(S.measurements||[]).filter(x=>+x.taille>0&&x.date>=dstr(days)).sort((a,b)=>a.date<b.date?-1:1);
+  return m.length>=2?+(m[m.length-1].taille-m[0].taille).toFixed(1):null;}
+// ergänzt den Wochen-Check: Diet-Break, Rückkehr, Taille
+function cpWeeklyExtra(P,prop,tr,kcal){
+  const today=todayStr();
+  if(P.breakUntil){ // Diet-Break läuft
+    if(today>=P.breakUntil){const to=P.breakReturn;P.breakUntil=null;
+      return {kind:'kcal',kcal:to,reason:`Dein Diet-Break ist vorbei – erholt zurück ins Defizit mit ${fmt(to)} kcal.`};}
+    return {kind:'info',reason:`Diet-Break läuft noch bis ${new Date(P.breakUntil).toLocaleDateString('de-DE')} – iss auf Erhaltung (${fmt(kcal)} kcal), das Gewicht darf leicht schwanken (Wasser/Glykogen).`};
+  }
+  if(prop&&(prop.kind==='kcal'&&prop.kcal<kcal||prop.kind==='steps')){ // „zu langsam“
+    const wt=cpWaistTrend(21);
+    if(wt!=null&&wt<=-1)return {kind:'info',reason:`Die Waage ist langsam, aber deine Taille ist ${fmt(-wt,1)} cm schmaler als vor 3 Wochen – du verlierst Fett (oft gleichzeitig Wassereinlagerung). Keine Kürzung, weiter so!`};
+    P.stalls=(P.stalls||0)+1;
+    const weeks=(Date.now()-new Date(P.lastBreak||P.start))/864e5/7;
+    if(P.stalls>=3||weeks>=12){
+      const td=computeTDEE(); // echter Verbrauch aus Gewichtsverlauf – bei Stillstand liegt er nahe der Zufuhr
+      const maint=Math.max(kcal+100,Math.round((td?td.tdee:kcal+200)/10)*10);
+      P.stalls=0;
+      return {kind:'break',kcal:maint,reason:`${weeks>=12?'Seit '+Math.round(weeks)+' Wochen im Defizit':'Seit 3 Wochen kaum Fortschritt trotz Einhalten'}. Vorschlag: 2 Wochen Diet-Break auf Erhaltung (${fmt(maint)} kcal) – senkt Stresshormone und Hunger, danach geht es meist wieder schneller runter.`};
+    }
+  }else if(prop&&prop.kind==='info'&&/voll im Plan/.test(prop.reason))P.stalls=0;
+  return prop;
+}
+function cpBreakAccepted(P,p){P.breakUntil=dstr(-14);P.breakReturn=p.from;P.lastBreak=todayStr();}
+// Wasser-Erklärung für Sprünge auf der Waage
+function cpWaterTip(){
+  const t=todayStr(),w=+(S.biometrics.find(b=>b.date===t)||{}).gewicht;if(!(w>0))return null;
+  let ema=null;for(let i=14;i>=1;i--){const x=+(S.biometrics.find(b=>b.date===dstr(i))||{}).gewicht;if(x>0)ema=ema==null?x:ema*0.7+x*0.3;}
+  if(ema==null)return null;const jump=w-ema;
+  if(jump<0.7)return jump<-0.9?`⚖️ ${fmt(-jump,1)} kg unter deinem Trend – freu dich, aber ein Teil ist Wasser. Der Trend zählt.`:null;
+  const y=dstr(1),yr=dayRow(y),c7=avg([2,3,4,5,6,7,8].map(i=>dayRow(dstr(i)).carbs).filter(Boolean));
+  const why=[(S.alcohol||{})[y]?'Alkohol':'',yr.carbs&&c7&&yr.carbs>c7*1.3?'viele Kohlenhydrate':'',yr.kcal>S.targets.kalorien*1.25?'ein großer Essenstag':''].filter(Boolean);
+  return `💧 Heute ${fmt(jump,1)} kg über deinem Trend – das ist fast sicher Wasser${why.length?' (gestern '+why.join(' + ')+')':' (Salz, Training, Zyklus, Schlaf)'}, kein Fett. In 2–3 Tagen ist es meist weg.`;
+}
+// Meilensteine
+const CP_MS=[1,2,3,5,7.5,10,15,20,25,30];
+function cpMilestones(P,lost){
+  P.ms=P.ms||[];const goalLost=P.startWeight-P.goal;
+  const hit=CP_MS.filter(m=>lost>=m&&m<=goalLost+0.5);
+  const fresh=hit.filter(m=>!P.ms.includes(m));
+  if(fresh.length){P.ms=[...P.ms,...fresh];save();setTimeout(()=>toast(`🎉 Meilenstein: −${fmt(Math.max(...fresh),fresh.some(x=>x%1)?1:0)} kg geschafft!`),600);}
+  const half=lost>=goalLost/2;
+  return [...hit.map(m=>`🏅 −${String(m).replace('.',',')} kg`),half?'🔥 Halbzeit':'' ].filter(Boolean);
+}
+// Wochenbericht (letzte 7 Tage)
+function cpWeekReport(){
+  const d=Array.from({length:7},(_,i)=>dstr(i+1));
+  const eat=d.map(x=>dayTotals(x)).filter(x=>x.kalorien>600);
+  const st=d.map(x=>+((hcDay(x)||{}).steps)||0).filter(Boolean);
+  const act=d.map(x=>hcBurn(x)).filter(Boolean);
+  const wIn=d.filter(x=>+(S.biometrics.find(b=>b.date===x)||{}).gewicht>0).length;
+  const tr=cpTrend(14);
+  return {tage:eat.length,kcal:eat.length?Math.round(avg(eat.map(x=>x.kalorien))):null,prot:eat.length?Math.round(avg(eat.map(x=>x.protein_g))):null,
+    steps:st.length?Math.round(avg(st)):null,act:act.length?Math.round(avg(act)):null,wIn,trend:tr.perWeek};
+}
+function cpShareReport(){const r=cpWeekReport(),P=S.coachPlan||{};
+  const txt=`📊 Meine Woche mit Evidence Fit\n${r.trend!=null?`⚖️ Trend ${r.trend>0?'+':''}${fmt(r.trend,2)} kg/Woche\n`:''}${P.startWeight?`🎯 ${fmt(Math.max(0,P.startWeight-(cpTrend(14).now||P.startWeight)),1)} kg seit Start\n`:''}${r.kcal?`🍽️ Ø ${fmt(r.kcal)} kcal · ${fmt(r.prot)} g Protein\n`:''}${r.steps?`👟 Ø ${fmt(r.steps)} Schritte\n`:''}https://fit.evidencetrading.com`;
+  if(navigator.share)navigator.share({text:txt}).catch(()=>{});else{navigator.clipboard?.writeText(txt);toast('Wochenbericht kopiert ✓');}}
+function cpExtraHTML(P,lost){
+  const ms=cpMilestones(P,lost),r=cpWeekReport(),rest=cpRest(),wt=cpWaterTip();
+  const cell=(l,v)=>`<div class="micro" style="padding:8px 10px"><span style="font-size:11px;color:var(--mut)">${l}</span><b style="display:block">${v}</b></div>`;
+  return `${wt?`<div class="item" style="padding:8px 0"><span style="font-size:13.5px">${wt}</span></div>`:''}
+    ${rest.kcal>=150?`<button class="btn sm" style="margin-top:10px" onclick="cpMealIdeas()">🍳 Gerichte für meine restlichen ${fmt(rest.kcal)} kcal</button>`:''}
+    ${ms.length?`<div class="row" style="gap:6px;margin-top:12px">${ms.map(m=>`<span class="badge verifiziert" style="font-size:12px">${m}</span>`).join('')}</div>`:''}
+    <div style="margin-top:14px"><div class="row" style="justify-content:space-between"><b style="font-size:14px">📊 Letzte 7 Tage</b><a href="#" style="font-size:12px;color:var(--acc)" onclick="cpShareReport();return false">teilen</a></div>
+      <div class="grid g4" style="gap:8px;margin-top:8px">${cell('Ø Kalorien',r.kcal?fmt(r.kcal)+' kcal':'–')}${cell('Ø Protein',r.prot!=null?fmt(r.prot)+' g':'–')}${cell('Ø Schritte',r.steps?fmt(r.steps):'–')}${cell('Ø aktiv',r.act?fmt(r.act)+' kcal':'–')}${cell('Getrackt',r.tage+'/7 Tage')}${cell('Gewogen',r.wIn+'/7 Tage')}</div></div>`;
 }
 
 /* ─── SETTINGS-INTEGRATION ─── */
