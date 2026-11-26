@@ -533,6 +533,7 @@ td{padding:8px 6px;border-top:1px solid var(--line)}
       </div>
       <div id="hcDiag" style="display:none;margin-top:10px"></div>
       <label style="display:flex;gap:8px;align-items:center;margin-top:12px;font-weight:500"><input type="checkbox" id="hcEatBack" style="width:auto" onchange="hcSetEatBack(this.checked)"> Verbrannte Kalorien (aktiv) zum Tagesziel addieren</label>
+      <label style="display:flex;gap:8px;align-items:center;margin-top:8px;font-weight:500"><input type="checkbox" id="cpNotify" style="width:auto" onchange="S.prefs.coachNotify=this.checked;save();cpPushState()"> Coach-Benachrichtigungen in der App (Wiegen, Rest-kcal, Wochen-Check)</label>
       <div class="row" style="margin-top:8px;align-items:center"><label style="margin:0">Schritt-Ziel</label><input type="number" id="hcStepGoal" style="max-width:120px" onchange="S.prefs.stepGoal=+this.value||10000;save();renderDash()"></div>
       <span class="sub" id="hcStatus"></span>
     </div>
@@ -2589,12 +2590,26 @@ function cpExtraHTML(P,lost){
       <div class="grid g4" style="gap:8px;margin-top:8px">${cell('Ø Kalorien',r.kcal?fmt(r.kcal)+' kcal':'–')}${cell('Ø Protein',r.prot!=null?fmt(r.prot)+' g':'–')}${cell('Ø Schritte',r.steps?fmt(r.steps):'–')}${cell('Ø aktiv',r.act?fmt(r.act)+' kcal':'–')}${cell('Getrackt',r.tage+'/7 Tage')}${cell('Gewogen',r.wIn+'/7 Tage')}</div></div>`;
 }
 
+// Zustand an die Android-App geben → Benachrichtigungen + Homescreen-Widget
+function cpPushState(){
+  try{if(!window.EvidenceHealth||!EvidenceHealth.setCoachState)return;
+    const t=todayStr(),r=cpRest(),h=hcDay(t)||{},P=S.coachPlan||{},tr=cpTrend(14),b=S.biometrics.find(x=>x.date===t)||{};
+    const p=P.pending;
+    EvidenceHealth.setCoachState(JSON.stringify({enabled:S.prefs.coachNotify!==false,date:t,
+      time:new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}),
+      restKcal:r.kcal,restProt:r.prot,steps:+h.steps||0,stepGoal:S.prefs.stepGoal||10000,
+      weighed:+b.gewicht>0&&!!(b._wManual||(b.health&&b.health.weight_kg)),
+      trendText:tr.now?`⚖️ ${fmt(tr.now,1)} kg${tr.perWeek!=null?` · ${tr.perWeek>0?'+':''}${fmt(tr.perWeek,2)}/Wo`:''}`:'⚖️ –',
+      pendingCheck:!!(P.active&&p),checkDate:p?p.date:'',checkText:p?String(p.reason).slice(0,180):''}));
+  }catch(e){}
+}
 /* ─── SETTINGS-INTEGRATION ─── */
 const _renderSettings=renderSettings;renderSettings=function(){
   _renderSettings();
   const pp=$('#setPlanPush');if(pp)pp.value=S.planPushTime||'06:30';
   updateFitbitStatus();updatePushStatus();updateSyncStatus();updateHcStatus();
   const sg=$('#hcStepGoal');if(sg)sg.value=S.prefs.stepGoal||10000;
+  const cn=$('#cpNotify');if(cn)cn.checked=S.prefs.coachNotify!==false;
 };
 const _saveSettings=saveSettings;saveSettings=function(){
   S.planPushTime=$('#setPlanPush').value||'06:30';
@@ -3200,6 +3215,7 @@ const _rd9=renderDash;renderDash=function(){_rd9();
   renderMeasure();renderAchievements();renderCycle();renderDailyInsightCard();
   try{renderHcDash();}catch(e){}
   try{renderCoachPlan();}catch(e){console.error(e)}
+  cpPushState();
 };
 const _sb9=saveBio;saveBio=function(){_sb9();
   const e=S.biometrics.find(b=>b.date===todayStr());
