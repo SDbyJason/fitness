@@ -2372,6 +2372,7 @@ function renderHcDash(){
 }
 
 if(location.hash==='#voice')setTimeout(()=>{history.replaceState(null,'',location.pathname);openAudioMeal();},1200);
+window.addEventListener('hashchange',()=>{if(location.hash==='#voice'){history.replaceState(null,'',location.pathname);openAudioMeal();}});
 // Beim Öffnen der App still nachladen (höchstens alle 30 Minuten)
 if(HC&&S.hcLinked&&Date.now()-(S.hcSyncedAt||0)>30*60e3)
   setTimeout(()=>{try{if(HC.status()==='available')hcSync(3,true);}catch(e){}},1500);
