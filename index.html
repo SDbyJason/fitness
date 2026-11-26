@@ -278,6 +278,7 @@ td{padding:8px 6px;border-top:1px solid var(--line)}
     <div class="card" id="evCard" style="margin:18px 0 4px;display:none"></div>
     <h2>Heute</h2>
     <div class="grid g4" id="dashRings"></div>
+    <div class="card" id="hcDash" style="margin-top:16px;display:none"></div>
     <div class="grid g2" style="margin-top:16px">
       <div class="card">
         <h2 style="margin-top:0">📊 Biometrie heute</h2>
@@ -528,6 +529,8 @@ td{padding:8px 6px;border-top:1px solid var(--line)}
         <button class="btn sm ghost" onclick="hcSync(14)">⬇️ Daten abrufen (14 Tage)</button>
         <button class="btn sm ghost" onclick="EvidenceHealth.openSettings()">⚙️ Health Connect</button>
       </div>
+      <label style="display:flex;gap:8px;align-items:center;margin-top:12px;font-weight:500"><input type="checkbox" id="hcEatBack" style="width:auto" onchange="hcSetEatBack(this.checked)"> Verbrannte Kalorien (aktiv) zum Tagesziel addieren</label>
+      <div class="row" style="margin-top:8px;align-items:center"><label style="margin:0">Schritt-Ziel</label><input type="number" id="hcStepGoal" style="max-width:120px" onchange="S.prefs.stepGoal=+this.value||10000;save();renderDash()"></div>
       <span class="sub" id="hcStatus"></span>
     </div>
     <div class="row" style="margin-top:16px">
@@ -963,14 +966,15 @@ function addMeal(res,label){
 }
 function delMeal(id){const d=nutriDate();S.meals[d]=(S.meals[d]||[]).filter(m=>m.id!==id);tombstone('meal:'+id);renderNutrition();renderDash();}
 function dayTotals(d){
-  const t={kalorien:0,protein_g:0,kohlenhydrate_g:0,fett_g:0};
+  const t={kalorien:0,protein_g:0,kohlenhydrate_g:0,fett_g:0,date:d};
   (S.meals[d]||[]).forEach(m=>{t.kalorien+=+m.gesamt?.kalorien||0;t.protein_g+=+m.gesamt?.protein_g||0;
     t.kohlenhydrate_g+=+m.gesamt?.kohlenhydrate_g||0;t.fett_g+=+m.gesamt?.fett_g||0;});
   return t;
 }
 function ringsHTML(t){
   const T=S.targets;
-  const defs=[['kcal',t.kalorien,T.kalorien,'#d15525'],['Protein',t.protein_g,T.protein,'#3f8f6b'],
+  const burn=(typeof hcBurn==='function'&&t.date&&hcEatBack())?hcBurn(t.date):0;
+  const defs=[[burn?`kcal (+${fmt(burn)} 🔥)`:'kcal',t.kalorien,T.kalorien+burn,'#d15525'],['Protein',t.protein_g,T.protein,'#3f8f6b'],
     ['Carbs',t.kohlenhydrate_g,T.kohlenhydrate,'#b3862d'],['Fett',t.fett_g,T.fett,'#7d5ba6']];
   return defs.map(([n,v,m,c])=>`<div class="card" style="display:grid;place-items:center">
     <div class="ring" style="--p:${Math.min(100,v/(m||1)*100)};--c:${c}"><div class="in"><b>${fmt(v)}</b><span>/ ${fmt(m)} ${n}</span></div></div></div>`).join('');
@@ -2013,6 +2017,7 @@ async function initFirebase(){
         S._uid=u.uid;persist(); // kein save(): Login ist keine Datenänderung, sonst gilt der Stand fälschlich als "ungesynct"
         showGate(false);
         startCloudSync();
+        try{hcHandAuth();}catch(e){}
       }else{
         showGate(true);
       }
@@ -2023,7 +2028,7 @@ async function initFirebase(){
     else{const g=$('#gateStatus');if(g)g.textContent='Keine Verbindung – für die erste Anmeldung wird Internet benötigt.';}
   }
 }
-function fbLogout(){try{stopCloudSync();localStorage.removeItem('apexfit_uid');firebase.auth().signOut();toast('Ausgeloggt');}catch{}}
+function fbLogout(){try{if(window.EvidenceHealth&&EvidenceHealth.clearAuth)EvidenceHealth.clearAuth();}catch(e){}try{stopCloudSync();localStorage.removeItem('apexfit_uid');firebase.auth().signOut();toast('Ausgeloggt');}catch{}}
 /* PURE Merge: vereinigt zwei Zustände a+b zu EINEM neuen, ohne dass Daten verloren gehen.
    Sammlungen werden per id/Datum/Key vereinigt; bei Skalaren (Profil/Ziele) gewinnt die neuere Seite (_updatedAt). */
 function mergeStates(a,b){
@@ -2038,6 +2043,7 @@ function mergeStates(a,b){
   R.onboarded=!!(a.onboarded||b.onboarded);
   R.fitbitUid=newer.fitbitUid||older.fitbitUid;
   R.hcLinked=!!(a.hcLinked||b.hcLinked);R.hcSyncedAt=Math.max(a.hcSyncedAt||0,b.hcSyncedAt||0)||null;
+  R._hcCloudAt=Math.max(a._hcCloudAt||0,b._hcCloudAt||0)||0;
   ['fasting','weeklyPlan','tips','coach','insightsAi','dailyInsight'].forEach(k=>{R[k]=newer[k]??older[k]??null;});
   // Tombstones (Löschungen) beider Seiten vereinigen – damit Gelöschtes NICHT wieder auftaucht
   R.tomb={};[a.tomb||{},b.tomb||{}].forEach(src=>{for(const k in src)R.tomb[k]=Math.max(R.tomb[k]||0,+src[k]||0);});
@@ -2111,7 +2117,7 @@ async function cloudPush(){
       let merged=S;
       if(snap.exists){try{merged=mergeStates(JSON.parse(snap.data().data),S);}catch{merged=S;}}
       merged._updatedAt=Date.now();merged._uid=fbUser.uid;out=merged;
-      tx.set(ref,{data:serializeForCloud(merged),updatedAt:merged._updatedAt});
+      tx.set(ref,{data:serializeForCloud(merged),updatedAt:merged._updatedAt},{merge:true}); // merge: Feld `health` der App bleibt
     });
     // Nur neu rendern, wenn der Merge WIRKLICH Fremd-Daten aus der Cloud gezogen hat (nicht bei jedem eigenen Push).
     if(out){const changed=stripMeta(out)!==stripMeta(mergeStates({},S));S=out;S._syncedAt=S._updatedAt;persist();if(changed)rerenderAll();}
@@ -2130,6 +2136,7 @@ function startCloudSync(){
     if(!snap.exists){cloudPush().catch(()=>{});return;}
     if(snap.metadata.hasPendingWrites)return; // eigener Schreibvorgang – ignorieren
     const d=snap.data();
+    if(d.health&&typeof hcFromCloud==='function')hcFromCloud(d.health); // vom Hintergrund-Abgleich der Android-App
     if((d.updatedAt||0)<=(S._syncedAt||0))return; // nichts Neues seit unserem letzten Sync
     let cloud;try{cloud=JSON.parse(d.data);}catch{return;}
     const merged=mergeStates(S,cloud);merged._uid=fbUser.uid;
@@ -2194,16 +2201,28 @@ if(location.hash.startsWith('#fitbit=')){
   toast('⌚ Fitbit verbunden ✓');
 }
 
-/* ─── SAMSUNG HEALTH (Health Connect, nur in der Android-App) ─── */
+/* ─── SAMSUNG HEALTH (Health Connect, Android-App) ─── */
 const HC=window.EvidenceHealth||null;
 let _hcQuiet=false;
+function hcH(min){return min?Math.round(min/6)/10:null;}
+function hcDay(d){return (S.biometrics.find(b=>b.date===d)||{}).health||null;}
+function hcEatBack(){return S.prefs.hcEatBack!==false;}
+function hcBurn(d){const h=hcDay(d);return h&&h.kcal_active?Math.round(h.kcal_active):0;}
+function hcBgInfo(){try{return HC&&HC.backgroundInfo?JSON.parse(HC.backgroundInfo()):null;}catch(e){return null;}}
 function updateHcStatus(){
   const el=$('#hcStatus'),btns=$('#hcBtns');if(!el)return;
-  if(!HC){el.textContent='📱 Nur in der Evidence-Fit-Android-App verfügbar';if(btns)btns.style.display='none';return;}
+  const eb=$('#hcEatBack');if(eb)eb.checked=hcEatBack();
+  const last=S.hcSyncedAt?' · zuletzt '+new Date(S.hcSyncedAt).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+  if(!HC){el.textContent=(S.hcSyncedAt?'Daten kommen aus der Android-App'+last:'📱 Verbinden geht nur in der Evidence-Fit-Android-App');if(btns)btns.style.display='none';return;}
   const st=HC.status();
-  el.textContent=st==='update_required'?'Health Connect muss aktualisiert werden – „verbinden“ öffnet den Play Store':
-    st!=='available'?'Health Connect ist auf diesem Gerät nicht verfügbar':
-    S.hcLinked?'Verbunden ✓'+(S.hcSyncedAt?' · zuletzt '+new Date(S.hcSyncedAt).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):''):'Nicht verbunden';
+  if(st==='update_required'){el.textContent='Health Connect muss aktualisiert werden – „verbinden“ öffnet den Play Store';return;}
+  if(st!=='available'){el.textContent='Health Connect ist auf diesem Gerät nicht verfügbar';return;}
+  if(!S.hcLinked){el.textContent='Nicht verbunden';return;}
+  const bg=hcBgInfo();
+  const bgTxt=!bg?'':bg.granted&&bg.scheduled?' · 🔄 Hintergrund-Abgleich aktiv (stündlich)':
+    bg.supported&&!bg.granted?' · Hintergrund-Abgleich: in „verbinden“ auch „Im Hintergrund lesen“ erlauben':
+    !bg.supported?' · Hintergrund-Abgleich wird von diesem Gerät nicht unterstützt':' · Hintergrund-Abgleich startet nach dem Login';
+  el.textContent='Verbunden ✓'+last+bgTxt;
 }
 function hcConnect(){if(!HC)return toast('Nur in der Android-App','err');HC.requestPermissions();}
 function hcSync(days,quiet){
@@ -2211,21 +2230,17 @@ function hcSync(days,quiet){
   _hcQuiet=!!quiet;if(!quiet)loading(true,'Samsung-Health-Daten werden geladen…');
   HC.sync(days||14);
 }
-const hcH=min=>min?Math.round(min/6)/10:null;
-window.onEvidenceHealth=function(m){
-  if(m.type==='permissions'){
-    if(m.granted>0){S.hcLinked=true;save();toast(`❤️ Samsung Health verbunden (${m.granted}/${m.total} Datenarten)`);hcSync(30);}
-    else toast('Keine Berechtigung erteilt','err');
-    updateHcStatus();return;
-  }
-  loading(false);
-  const quiet=_hcQuiet;_hcQuiet=false;
-  if(m.type==='error'){
-    if(m.code==='no_permissions'){S.hcLinked=false;save();}
-    if(!quiet)toast('Samsung Health: '+m.message,'err');
-    updateHcStatus();return;
-  }
-  if(m.type!=='data')return;
+function hcSetEatBack(on){S.prefs.hcEatBack=!!on;save();renderDash();renderNutrition();}
+// Anmeldung an die App weitergeben → stündlicher Abgleich im Hintergrund (auch bei geschlossener App)
+function hcHandAuth(){
+  try{
+    if(!HC||!HC.setAuth||!fbUser||!S.hcLinked)return;
+    const c=APP_CONFIG.firebase||{};if(!c.apiKey||!c.projectId||!fbUser.refreshToken)return;
+    HC.setAuth(JSON.stringify({apiKey:c.apiKey,projectId:c.projectId,uid:fbUser.uid,refreshToken:fbUser.refreshToken}));
+  }catch(e){}
+}
+// Tageswerte übernehmen (aus der App direkt oder aus dem Hintergrund-Abgleich über die Cloud)
+function hcApply(m,quiet){
   let n=0;
   for(const d of m.days||[]){
     if(Object.keys(d).length<2)continue;n++;
@@ -2237,7 +2252,7 @@ window.onEvidenceHealth=function(m){
     if(d.weight_kg!=null)e.gewicht=d.weight_kg;
     if(d.body_fat_pct!=null)e.kfa=d.body_fat_pct;
     const h=Object.assign({},d,{src:'samsung_health'});delete h.date;
-    e.health=h; // alle Rohwerte (Kalorien, Puls, Schlafphasen, Trainings, SpO₂, Blutdruck, …)
+    e.health=h;
     S.biometrics=S.biometrics.filter(b=>b.date!==d.date);S.biometrics.push(e);
   }
   const rev=[...(m.days||[])].reverse();
@@ -2245,10 +2260,83 @@ window.onEvidenceHealth=function(m){
   const f=rev.find(d=>d.body_fat_pct!=null);if(f)S.profile.kfa=f.body_fat_pct;
   if(m.height_cm)S.profile.groesse=m.height_cm;
   S.biometrics.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
-  S.hcLinked=true;S.hcSyncedAt=Date.now();save();renderDash();updateHcStatus();
+  S.hcLinked=true;S.hcSyncedAt=Math.max(Date.now(),m.updatedAt||0);save();renderDash();renderNutrition();updateHcStatus();
   if(!quiet){const t=(m.days||[]).find(d=>d.date===todayStr())||{};
-    toast(`❤️ ${n} Tage übernommen · heute ${t.steps??'–'} Schritte · Schlaf ${hcH(t.sleep_min)??'–'} h`);}
+    toast(`❤️ ${n} Tage übernommen · heute ${t.steps??'–'} Schritte · ${t.kcal_active??'–'} kcal aktiv`);}
+}
+window.onEvidenceHealth=function(m){
+  if(m.type==='permissions'){
+    if(m.granted>0){S.hcLinked=true;save();hcHandAuth();
+      toast(`❤️ Samsung Health verbunden (${m.granted}/${m.total} Datenarten${m.background?' · Hintergrund an':''})`);hcSync(30);}
+    else toast('Keine Berechtigung erteilt','err');
+    updateHcStatus();return;
+  }
+  loading(false);
+  const quiet=_hcQuiet;_hcQuiet=false;
+  if(m.type==='error'){
+    if(m.code==='no_permissions'){S.hcLinked=false;save();}
+    if(!quiet)toast('Samsung Health: '+m.message,'err');
+    updateHcStatus();return;
+  }
+  if(m.type==='data')hcApply(m,quiet);
 };
+// Werte aus dem Cloud-Feld `health` (geschrieben vom Hintergrund-Abgleich der App)
+function hcFromCloud(str){
+  try{const m=JSON.parse(str);if(m&&m.updatedAt>(S._hcCloudAt||0)){S._hcCloudAt=m.updatedAt;hcApply(m,true);}}catch(e){}
+}
+
+/* ─── Dashboard-Karte: Aktivität & Gesundheit ─── */
+const WORKOUT_ICON={Laufen:'🏃',Gehen:'🚶',Wandern:'🥾',Radfahren:'🚴',Krafttraining:'🏋️',Calisthenics:'🤸',HIIT:'🔥',Schwimmen:'🏊',Yoga:'🧘',Pilates:'🧘',Dehnen:'🙆',Crosstrainer:'⚙️','Rudergerät':'🚣',Treppensteigen:'🪜',Boxen:'🥊',Kampfsport:'🥋','Fußball':'⚽',Tanzen:'💃',Training:'💪'};
+function hcTile(icon,label,val,sub){return `<div class="micro" style="padding:10px 12px"><span style="font-size:12px;color:var(--mut)">${icon} ${label}</span><b style="display:block;font-size:18px;margin-top:2px">${val}</b>${sub?`<span style="font-size:11px;color:var(--mut)">${sub}</span>`:''}</div>`;}
+function hcBars(key,label,unit,color){
+  const days=Array.from({length:7},(_,i)=>dstr(6-i));
+  const vals=days.map(d=>+((hcDay(d)||{})[key])||0);const mx=Math.max(...vals,1);
+  return `<div><span class="sub" style="font-size:12px">${label} · 7 Tage (Ø ${fmt(avg(vals.filter(Boolean)))} ${unit})</span>
+    <div style="display:flex;align-items:flex-end;gap:6px;height:64px;margin-top:6px">${vals.map((v,i)=>`<div title="${days[i]}: ${fmt(v)} ${unit}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+      <div style="width:100%;height:${Math.max(3,v/mx*52)}px;background:${color};border-radius:5px;opacity:${i===6?1:.55}"></div>
+      <span style="font-size:10px;color:var(--mut)">${new Date(days[i]).toLocaleDateString('de-DE',{weekday:'narrow'})}</span></div>`).join('')}</div></div>`;
+}
+function renderHcDash(){
+  const box=$('#hcDash');if(!box)return;
+  const t=todayStr(),h=hcDay(t)||{},y=hcDay(dstr(1))||{};
+  const any=S.biometrics.some(b=>b.health);
+  if(!any){box.style.display='none';return;}
+  box.style.display='block';
+  const stepGoal=S.prefs.stepGoal||10000,steps=+h.steps||0;
+  const eaten=dayTotals(t).kalorien,burn=+h.kcal_active||0,goal=S.targets.kalorien+(hcEatBack()?burn:0);
+  const rest=Math.round(goal-eaten);
+  const sl=h.sleep_min?h:(y.sleep_min?y:null);
+  const stage=(k,c,n)=>sl&&sl[k]?`<div style="flex:${sl[k]};background:${c};height:10px" title="${n} ${hcH(sl[k])} h"></div>`:'';
+  const tiles=[
+    hcTile('👟','Schritte',fmt(steps),`${Math.round(steps/stepGoal*100)} % von ${fmt(stepGoal)}`),
+    hcTile('🔥','Aktiv verbrannt',fmt(burn)+' kcal',h.kcal_total?'gesamt '+fmt(h.kcal_total)+' kcal':''),
+    h.distance_km!=null?hcTile('📏','Distanz',fmt(h.distance_km,2)+' km',h.floors?h.floors+' Etagen':''):'',
+    h.hr_avg!=null?hcTile('💓','Puls Ø',h.hr_avg+' bpm',`${h.hr_min??'–'}–${h.hr_max??'–'} bpm`):'',
+    h.rhr!=null?hcTile('❤️','Ruhepuls',h.rhr+' bpm',''):'',
+    h.hrv_ms!=null?hcTile('📈','HRV',fmt(h.hrv_ms)+' ms',''):'',
+    h.spo2_pct!=null?hcTile('🫁','SpO₂',fmt(h.spo2_pct,1)+' %',''):'',
+    h.bp_sys!=null?hcTile('🩺','Blutdruck',h.bp_sys+'/'+h.bp_dia,'mmHg'):'',
+    h.resp_rate!=null?hcTile('🌬️','Atemfrequenz',fmt(h.resp_rate,1),'/min'):'',
+    h.temp_c!=null?hcTile('🌡️','Temperatur',fmt(h.temp_c,1)+' °C',''):'',
+    h.glucose_mgdl!=null?hcTile('🩸','Blutzucker',fmt(h.glucose_mgdl)+' mg/dl',''):'',
+    h.water_l!=null?hcTile('💧','Trinkmenge',fmt(h.water_l,2)+' l',''):'',
+    h.weight_kg!=null?hcTile('⚖️','Gewicht',fmt(h.weight_kg,1)+' kg',h.body_fat_pct!=null?'KFA '+fmt(h.body_fat_pct,1)+' %':''):'',
+    h.food_kcal!=null?hcTile('🍽️','In Samsung Health gegessen',fmt(h.food_kcal)+' kcal',`P ${fmt(h.food_protein_g)} · K ${fmt(h.food_carbs_g)} · F ${fmt(h.food_fat_g)} g`):''
+  ].join('');
+  const wos=(h.workouts||[]);
+  box.innerHTML=`<div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">❤️ Aktivität &amp; Gesundheit</h2>
+      <span class="sub" style="font-size:12px">Samsung Health${S.hcSyncedAt?' · '+new Date(S.hcSyncedAt).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):''}${HC?` · <a href="#" style="color:var(--acc)" onclick="hcSync(3);return false">aktualisieren</a>`:''}</span></div>
+    <div class="item" style="border-bottom:none;padding-bottom:4px"><div class="t"><b>🔥 Kalorienbilanz heute</b>
+      <span>Ziel ${fmt(S.targets.kalorien)}${hcEatBack()?` + ${fmt(burn)} verbrannt`:''} − ${fmt(eaten)} gegessen</span></div>
+      <b style="color:${rest>=0?'var(--acc2)':'var(--err)'};white-space:nowrap">${rest>=0?'noch '+fmt(rest):fmt(-rest)+' drüber'} kcal</b></div>
+    <div style="height:8px;border-radius:5px;background:var(--line);overflow:hidden;margin:4px 0 14px"><div style="height:100%;width:${Math.min(100,eaten/(goal||1)*100)}%;background:${rest>=0?'var(--acc)':'var(--err)'}"></div></div>
+    <div class="grid g4" style="gap:10px">${tiles}</div>
+    ${sl?`<div style="margin-top:14px"><span class="sub" style="font-size:12px">😴 Schlaf ${fmt(hcH(sl.sleep_min),1)} h${sl===y?' (letzte Nacht)':''}${sl.sleep_deep_min?` · Tief ${fmt(hcH(sl.sleep_deep_min),1)} h · REM ${fmt(hcH(sl.sleep_rem_min),1)} h · Leicht ${fmt(hcH(sl.sleep_light_min),1)} h · Wach ${fmt(hcH(sl.sleep_awake_min),1)} h`:''}</span>
+      ${sl.sleep_deep_min?`<div style="display:flex;border-radius:6px;overflow:hidden;margin-top:6px">${stage('sleep_deep_min','#4a3aa8','Tief')}${stage('sleep_rem_min','#7d5ba6','REM')}${stage('sleep_light_min','#9db8e8','Leicht')}${stage('sleep_awake_min','#d15525','Wach')}</div>`:''}</div>`:''}
+    ${wos.length?`<div style="margin-top:14px"><span class="sub" style="font-size:12px">Trainings heute (Samsung Health)</span>${wos.map(w=>`<div class="item"><div class="t"><b>${WORKOUT_ICON[w.type]||'💪'} ${esc(w.title||w.type)}</b><span>${new Date(w.start).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})} · ${w.min} min</span></div></div>`).join('')}</div>`:''}
+    <div class="grid g2" style="gap:16px;margin-top:14px">${hcBars('steps','👟 Schritte','','var(--acc2)')}${hcBars('kcal_active','🔥 Aktive kcal','kcal','var(--acc)')}</div>`;
+}
+
 // Beim Öffnen der App still nachladen (höchstens alle 30 Minuten)
 if(HC&&S.hcLinked&&Date.now()-(S.hcSyncedAt||0)>30*60e3)
   setTimeout(()=>{try{if(HC.status()==='available')hcSync(3,true);}catch(e){}},1500);
@@ -2258,6 +2346,7 @@ const _renderSettings=renderSettings;renderSettings=function(){
   _renderSettings();
   const pp=$('#setPlanPush');if(pp)pp.value=S.planPushTime||'06:30';
   updateFitbitStatus();updatePushStatus();updateSyncStatus();updateHcStatus();
+  const sg=$('#hcStepGoal');if(sg)sg.value=S.prefs.stepGoal||10000;
 };
 const _saveSettings=saveSettings;saveSettings=function(){
   S.planPushTime=$('#setPlanPush').value||'06:30';
@@ -2861,6 +2950,7 @@ const _rd9=renderDash;renderDash=function(){_rd9();
   const rd=readinessScore(),rc=$('#readyCard');
   if(rc){rc.style.display=rd?'block':'none';if(rd)rc.innerHTML=readinessHTML(rd,true);}
   renderMeasure();renderAchievements();renderCycle();renderDailyInsightCard();
+  try{renderHcDash();}catch(e){}
 };
 const _sb9=saveBio;saveBio=function(){_sb9();
   const e=S.biometrics.find(b=>b.date===todayStr());
