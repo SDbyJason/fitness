@@ -528,7 +528,9 @@ td{padding:8px 6px;border-top:1px solid var(--line)}
         <button class="btn sm" onclick="hcConnect()">❤️ Samsung Health verbinden</button>
         <button class="btn sm ghost" onclick="hcSync(14)">⬇️ Daten abrufen (14 Tage)</button>
         <button class="btn sm ghost" onclick="EvidenceHealth.openSettings()">⚙️ Health Connect</button>
+        <button class="btn sm ghost" onclick="hcDiagnose()">🔍 Diagnose</button>
       </div>
+      <div id="hcDiag" style="display:none;margin-top:10px"></div>
       <label style="display:flex;gap:8px;align-items:center;margin-top:12px;font-weight:500"><input type="checkbox" id="hcEatBack" style="width:auto" onchange="hcSetEatBack(this.checked)"> Verbrannte Kalorien (aktiv) zum Tagesziel addieren</label>
       <div class="row" style="margin-top:8px;align-items:center"><label style="margin:0">Schritt-Ziel</label><input type="number" id="hcStepGoal" style="max-width:120px" onchange="S.prefs.stepGoal=+this.value||10000;save();renderDash()"></div>
       <span class="sub" id="hcStatus"></span>
@@ -2279,7 +2281,17 @@ window.onEvidenceHealth=function(m){
     updateHcStatus();return;
   }
   if(m.type==='data')hcApply(m,quiet);
+  if(m.type==='diag')hcShowDiag(m);
 };
+function hcDiagnose(){if(!HC||!HC.diagnose)return toast('Bitte die neueste Android-App installieren','err');loading(true,'Health Connect wird geprüft…');HC.diagnose();}
+const HC_DE={Steps:'Schritte',Distance:'Distanz',FloorsClimbed:'Etagen',ActiveCaloriesBurned:'Aktive kcal',TotalCaloriesBurned:'Gesamt-kcal',ExerciseSession:'Trainings',HeartRate:'Puls',RestingHeartRate:'Ruhepuls',HeartRateVariabilityRmssd:'HRV',SleepSession:'Schlaf',Weight:'Gewicht',BodyFat:'Körperfett',Height:'Größe',OxygenSaturation:'SpO₂',BloodPressure:'Blutdruck',BloodGlucose:'Blutzucker',RespiratoryRate:'Atemfrequenz',BodyTemperature:'Temperatur',Hydration:'Trinkmenge',Nutrition:'Ernährung'};
+function hcShowDiag(m){
+  const el=$('#hcDiag');if(!el)return;el.style.display='block';
+  if(m.error){el.innerHTML=`<p class="sub">Fehler: ${esc(m.error)}</p>`;return;}
+  const app=p=>p==='com.sec.android.app.shealth'?'Samsung Health':p==='com.google.android.apps.fitness'?'Google Fit':p;
+  el.innerHTML=`<p class="sub" style="margin:0 0 6px">Rechte: ${m.granted}/${m.total} · Hintergrund: ${m.background?'ja':'nein'} · Schritte heute laut Health Connect: <b>${m.steps_today_aggregate??'–'}</b>${m.steps_error?' ('+esc(m.steps_error)+')':''}</p>`+
+    (m.rows||[]).map(r=>`<div class="item" style="padding:6px 0"><div class="t"><b>${HC_DE[r.type]||esc(r.type)}</b><span>${!r.perm?'❌ keine Berechtigung':r.error?'⚠️ '+esc(r.error):(r.today?r.today+' Einträge heute · '+(r.apps||[]).map(app).join(', '):'keine Daten heute')}</span></div></div>`).join('');
+}
 // Werte aus dem Cloud-Feld `health` (geschrieben vom Hintergrund-Abgleich der App)
 function hcFromCloud(str){
   try{const m=JSON.parse(str);if(m&&m.updatedAt>(S._hcCloudAt||0)){S._hcCloudAt=m.updatedAt;hcApply(m,true);}}catch(e){}
