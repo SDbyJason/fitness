@@ -1530,6 +1530,7 @@ function saveBio(){
   save();renderDash();toast('Biometrie gespeichert ✓');
 }
 function renderDash(){
+  try{if(typeof syncProfileWeight==='function'&&syncProfileWeight())localStorage.setItem('apexfit',JSON.stringify(S));}catch(e){}
   $('#dashRings').innerHTML=ringsHTML(dayTotals(todayStr()));
   const b=S.biometrics.find(x=>x.date===todayStr())||{};
   $('#bioGewicht').value=b.gewicht||'';$('#bioGewicht').placeholder=S.profile.gewicht?fmt(S.profile.gewicht,1):'';$('#bioKfa').value=b.kfa||'';
@@ -1559,9 +1560,9 @@ function renderSettings(){
   $('#setCarb').value=S.targets.kohlenhydrate;$('#setFett').value=S.targets.fett;
 }
 function saveSettings(){
-  S.profile={name:$('#setName').value,gewicht:+$('#setGewicht').value||80,groesse:+$('#setGroesse').value||180,
+  S.profile={...S.profile,_ts:Date.now(),name:$('#setName').value,gewicht:+$('#setGewicht').value||80,groesse:+$('#setGroesse').value||180,
     kfa:+$('#setKfa').value||15,alter:+$('#setAlter').value||25,geschlecht:$('#setGeschlecht').value||'m',ziel:$('#setZiel').value};
-  S.targets={kalorien:+$('#setKcal').value||2500,protein:+$('#setProt').value||180,
+  S.targets={_ts:Date.now(),kalorien:+$('#setKcal').value||2500,protein:+$('#setProt').value||180,
     kohlenhydrate:+$('#setCarb').value||250,fett:+$('#setFett').value||80};
   save();renderDash();toast('Einstellungen gespeichert ✓');
 }
@@ -2042,8 +2043,11 @@ function mergeStates(a,b){
   a=a||{};b=b||{};
   const newer=(b._updatedAt||0)>=(a._updatedAt||0)?b:a, older=newer===b?a:b;
   const R=structuredClone(DEFAULTS);
-  R.profile=structuredClone(newer.profile||older.profile||DEFAULTS.profile);
-  R.targets=structuredClone(newer.targets||older.targets||DEFAULTS.targets);
+  // Profil, Ziele & Coach: wer zuletzt WIRKLICH geändert hat (eigener Zeitstempel), nicht wer zuletzt irgendwas gespeichert hat
+  const byTs=(k,def)=>{const x=a[k],y=b[k];if(!x&&!y)return def;if(!x||!y)return x||y;
+    const tx=x._ts||0,ty=y._ts||0;return tx===ty?(newer[k]||older[k]):(tx>ty?x:y);};
+  R.profile=structuredClone(byTs('profile',DEFAULTS.profile));
+  R.targets=structuredClone(byTs('targets',DEFAULTS.targets));
   R.prefs=Object.assign({},older.prefs,newer.prefs);
   R.planPushTime=newer.planPushTime||older.planPushTime;
   R.pushEnabled=!!(a.pushEnabled||b.pushEnabled);
@@ -2051,7 +2055,7 @@ function mergeStates(a,b){
   R.fitbitUid=newer.fitbitUid||older.fitbitUid;
   R.hcLinked=!!(a.hcLinked||b.hcLinked);R.hcSyncedAt=Math.max(a.hcSyncedAt||0,b.hcSyncedAt||0)||null;
   R._hcCloudAt=Math.max(a._hcCloudAt||0,b._hcCloudAt||0)||0;
-  R.coachPlan=newer.coachPlan??older.coachPlan??null;
+  R.coachPlan=byTs('coachPlan',null);
   R.kcalShift={...(older.kcalShift||{}),...(newer.kcalShift||{})};R.cravings=newer.cravings||older.cravings||[];R.bet=newer.bet??older.bet??null;R.goalPic=newer.goalPic??older.goalPic??null;
   ['fasting','weeklyPlan','tips','coach','insightsAi','dailyInsight'].forEach(k=>{R[k]=newer[k]??older[k]??null;});
   // Tombstones (Löschungen) beider Seiten vereinigen – damit Gelöschtes NICHT wieder auftaucht
@@ -2073,8 +2077,14 @@ function mergeStates(a,b){
     const ex=sm.get(s.id);sm.set(s.id, ex?{...ex,...s,genommen:Object.assign({},ex.genommen,s.genommen)}:s);});
   R.supplements=[...sm.values()];
   // Biometrie & Maße: pro Datum (neuere Seite gewinnt bei Konflikt)
+  const realW=e=>!!(e&&(e._wManual||(e.health&&e.health.weight_kg)));
   ['biometrics','measurements'].forEach(k=>{const m=new Map();
-    (older[k]||[]).forEach(e=>e?.date&&m.set(e.date,e));(newer[k]||[]).forEach(e=>e?.date&&m.set(e.date,e));
+    (older[k]||[]).forEach(e=>e?.date&&m.set(e.date,e));
+    (newer[k]||[]).forEach(e=>{if(!e?.date)return;const o=m.get(e.date);if(!o){m.set(e.date,e);return;}
+      const x={...o,...e};
+      if(o.health&&(!e.health||(o.health.updatedAt||0)>(e.health.updatedAt||0)))x.health=o.health; // Samsung-Daten nie verlieren
+      if(realW(o)&&!realW(e)){x.gewicht=o.gewicht;x._wManual=o._wManual;}                    // echtes Gewicht schlägt Platzhalter
+      m.set(e.date,x);});
     R[k]=[...m.values()].sort((x,y)=>x.date<y.date?-1:1);});
   // Rezepte per Name (gelöschte raus)
   const rn=new Map();[...(a.recipes||[]),...(b.recipes||[])].forEach(r=>r?.name&&!dead('recipe:'+r.name)&&rn.set(r.name,r));R.recipes=[...rn.values()];
@@ -2273,7 +2283,7 @@ function hcApply(m,quiet){
     if(d.hrv_ms!=null)e.hrv=Math.round(d.hrv_ms);
     if(d.weight_kg!=null)e.gewicht=d.weight_kg;
     if(d.body_fat_pct!=null)e.kfa=d.body_fat_pct;
-    const h=Object.assign({},d,{src:'samsung_health'});delete h.date;
+    const h=Object.assign({},d,{src:'samsung_health',updatedAt:m.updatedAt||Date.now()});delete h.date;
     e.health=h;
     S.biometrics=S.biometrics.filter(b=>b.date!==d.date);S.biometrics.push(e);
   }
@@ -2281,7 +2291,7 @@ function hcApply(m,quiet){
   const w=rev.find(d=>d.weight_kg!=null);if(w)S.profile.gewicht=w.weight_kg;
   const f=rev.find(d=>d.body_fat_pct!=null);if(f)S.profile.kfa=f.body_fat_pct;
   if(m.height_cm)S.profile.groesse=m.height_cm;
-  S.biometrics.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
+  S.biometrics.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);syncProfileWeight();
   S.hcLinked=true;S.hcSyncedAt=Math.max(Date.now(),m.updatedAt||0);save();renderDash();renderNutrition();updateHcStatus();
   if(!quiet){const t=(m.days||[]).find(d=>d.date===todayStr())||{};
     toast(`❤️ ${n} Tage übernommen · heute ${t.steps??'–'} Schritte · ${t.kcal_active??'–'} kcal aktiv`);}
@@ -2400,7 +2410,7 @@ function cpSuggestStart(rate){
 function cpMacros(kcal){
   const w=+S.profile.zielgewicht||+S.profile.gewicht||80;
   const prot=Math.round(w*2.2),fett=Math.round(w*0.8);
-  return {kalorien:kcal,protein:prot,fett,kohlenhydrate:Math.max(50,Math.round((kcal-prot*4-fett*9)/4))};
+  return {_ts:Date.now(),kalorien:kcal,protein:prot,fett,kohlenhydrate:Math.max(50,Math.round((kcal-prot*4-fett*9)/4))};
 }
 function cpStart(){
   const zg=+($('#cpGoal')||{}).value||+S.profile.zielgewicht;const rate=+($('#cpRate')||{}).value||0.75;
@@ -2408,12 +2418,12 @@ function cpStart(){
   const tr0=cpTrend(14),w=+(tr0.now||S.profile.gewicht||80).toFixed(1);if(zg>=w)return toast('Das Zielgewicht muss unter deinem aktuellen Gewicht liegen','err');
   const s=cpSuggestStart(rate);
   if(!confirm(`Abnehm-Plan starten?\n\nVerbrauch: ${fmt(s.tdee)} kcal (${s.src})\nDefizit: ${fmt(s.deficit)} kcal/Tag (${String(rate).replace('.',',')} % pro Woche)\n→ neues Tagesziel: ${fmt(s.kcal)} kcal\nProtein ${cpMacros(s.kcal).protein} g\n\nDer Coach prüft jede Woche deinen Fortschritt und schlägt Anpassungen vor – du bestätigst sie.`))return;
-  S.profile.zielgewicht=zg;S.profile.ziel='Fettabbau';
-  S.coachPlan={active:true,start:todayStr(),startWeight:w,goal:zg,rate,lastWeek:isoWeekStr(),pending:null,history:[{date:todayStr(),from:S.targets.kalorien,to:s.kcal,reason:'Plan gestartet',ok:true}]};
+  S.profile.zielgewicht=zg;S.profile.ziel='Fettabbau';S.profile._ts=Date.now();
+  S.coachPlan={active:true,start:todayStr(),startWeight:w,goal:zg,rate,lastWeek:isoWeekStr(),pending:null,history:[{date:todayStr(),from:S.targets.kalorien,to:s.kcal,reason:'Plan gestartet',ok:true}],_ts:Date.now()};
   S.targets=cpMacros(s.kcal);S.prefs.adaptive=false; // der Coach übernimmt die Anpassung (mit Bestätigung)
   save();renderDash();renderNutrition();toast('🎯 Abnehm-Plan aktiv · '+fmt(s.kcal)+' kcal/Tag');
 }
-function cpStop(){if(!confirm('Abnehm-Plan beenden? Deine aktuellen Ziele bleiben.'))return;S.coachPlan.active=false;save();renderDash();}
+function cpStop(){if(!confirm('Abnehm-Plan beenden? Deine aktuellen Ziele bleiben.'))return;S.coachPlan.active=false;S.coachPlan._ts=Date.now();save();renderDash();}
 // Wöchentlicher Check (läuft automatisch 1× pro Woche beim Öffnen)
 function cpWeekly(force){
   const P=S.coachPlan;if(!P||!P.active)return;
@@ -2446,7 +2456,7 @@ function cpWeekly(force){
     }else prop={kind:'info',reason:`${txt} – du bist voll im Plan. 💪 Weiter so, keine Änderung.`};
   }
   prop=cpWeeklyExtra(P,prop,tr,kcal);
-  P.pending={...prop,date:todayStr(),from:kcal};
+  P.pending={...prop,date:todayStr(),from:kcal};P._ts=Date.now();
   if(prop.kind==='info'){P.history.unshift({date:todayStr(),from:kcal,to:kcal,reason:prop.reason,ok:true});}
   save();
 }
@@ -2455,7 +2465,7 @@ function cpAnswer(ok){
   if(ok&&(p.kind==='kcal'||p.kind==='goal'||p.kind==='break')){S.targets=cpMacros(p.kcal);if(p.kind==='goal')P.active=false;if(p.kind==='break')cpBreakAccepted(P,p);}
   if(ok&&p.kind==='steps')S.prefs.stepGoal=p.steps;
   if(p.kind!=='info')P.history.unshift({date:todayStr(),from:p.from,to:ok&&p.kcal?p.kcal:p.from,reason:p.reason+(ok?' ✓ übernommen':' ✕ abgelehnt'),ok});
-  P.pending=null;save();renderDash();renderNutrition();
+  P.pending=null;P._ts=Date.now();save();renderDash();renderNutrition();
   if(ok&&p.kcal&&p.kcal!==p.from&&S.weeklyPlan&&(S.weeklyPlan.tage||[]).length)setTimeout(()=>{if(confirm('Dein Wochen-Essensplan passt nicht mehr zum neuen Ziel. Jetzt neu erstellen (inkl. Einkaufsliste)?'))genWeeklyPlan();},400);
   toast(ok&&p.kind!=='info'?'✓ Übernommen – neues Ziel '+fmt(S.targets.kalorien)+' kcal':'OK');
 }
@@ -2774,6 +2784,13 @@ function goalPicHTML(){const g=S.goalPic;
         <span class="sub" style="font-size:11px">🎯 ${fmt(g.goal,1)} kg</span></div></div>
     <p class="sub" style="font-size:11.5px;margin:6px 0 0">Schätzung der KI – dein echtes Ergebnis hängt von Muskeln und Fettverteilung ab.</p></div>`;}
 
+// Profilgewicht = letztes echtes Gewicht (Waage/Samsung/Eintrag) – nie mehr der Standardwert 80
+function syncProfileWeight(){
+  const real=S.biometrics.filter(b=>+b.gewicht>0&&(b._wManual||(b.health&&b.health.weight_kg)||+b.gewicht!==80)).sort((x,y)=>x.date<y.date?-1:1);
+  const last=real[real.length-1];
+  if(last&&Math.abs((+S.profile.gewicht||0)-last.gewicht)>0.05){S.profile.gewicht=+(+last.gewicht).toFixed(1);return true;}
+  return false;
+}
 /* ─── SETTINGS-INTEGRATION ─── */
 const _renderSettings=renderSettings;renderSettings=function(){
   _renderSettings();
@@ -2970,7 +2987,7 @@ function applyAdaptive(t,auto){
   const g=S.profile.gewicht,z=S.profile.ziel;
   const kcal=Math.round((t.tdee+zielDelta(z))/10)*10;
   const prot=Math.round(g*(z==='Fettabbau'?2.4:2)),fett=Math.round(g*(z==='Fettabbau'?0.8:1));
-  S.targets={kalorien:kcal,protein:prot,fett,kohlenhydrate:Math.max(50,Math.round((kcal-prot*4-fett*9)/4))};
+  S.targets={_ts:Date.now(),kalorien:kcal,protein:prot,fett,kohlenhydrate:Math.max(50,Math.round((kcal-prot*4-fett*9)/4))};
   save();renderDash();renderInsights();
   toast((auto?'⚙️ Wochen-Update: ':'')+`Ziele nachjustiert → ${fmt(kcal)} kcal (echter TDEE: ${fmt(t.tdee)})`);
 }
@@ -3365,12 +3382,12 @@ function maybeOnboard(){
 function finishOnboard(){
   const g=+$('#ob_gewicht').value||80,h=+$('#ob_groesse').value||180,a=+$('#ob_alter').value||25,
     sex=$('#ob_geschlecht').value,ziel=$('#ob_ziel').value;
-  S.profile={name:$('#ob_name').value||'',gewicht:g,groesse:h,kfa:S.profile.kfa||15,alter:a,geschlecht:sex,ziel,
+  S.profile={...S.profile,_ts:Date.now(),name:$('#ob_name').value||'',gewicht:g,groesse:h,kfa:S.profile.kfa||15,alter:a,geschlecht:sex,ziel,
     zielgewicht:+$('#ob_zielgewicht').value||null};
   const bmr=10*g+6.25*h-5*a+(sex==='w'?-161:5);
   const kcal=Math.round((bmr*1.5+zielDelta(ziel))/10)*10;
   const prot=Math.round(g*(ziel==='Fettabbau'?2.4:2)),fett=Math.round(g*(ziel==='Fettabbau'?0.8:1));
-  S.targets={kalorien:kcal,protein:prot,fett,kohlenhydrate:Math.max(50,Math.round((kcal-prot*4-fett*9)/4))};
+  S.targets={_ts:Date.now(),kalorien:kcal,protein:prot,fett,kohlenhydrate:Math.max(50,Math.round((kcal-prot*4-fett*9)/4))};
   S.onboarded=1;save();closeModal();rerenderAll();
   toast(`Willkommen${S.profile.name?' '+S.profile.name:''}! Tagesziel: ${fmt(kcal)} kcal / ${prot} g Protein ✓`);
 }
