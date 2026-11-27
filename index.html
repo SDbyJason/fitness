@@ -2753,8 +2753,11 @@ function goalImageStart(){
   const i=document.createElement('input');i.type='file';i.accept='image/*';i.capture='user';
   i.onchange=async()=>{if(!i.files[0])return;const b64=await fileToB64(i.files[0],1280);
     const p=S.profile,now=cpTrend(14).now||+p.gewicht;
-    try{const r=await aiCall('goal_image',{imageBase64:b64,mimeType:'image/jpeg',
-        context:{gewicht:+(+now).toFixed(1),groesse:+p.groesse||180,kfa:+p.kfa||null,geschlecht:p.geschlecht,alter:+p.alter||30,zielgewicht:zg}},'Dein Ziel-Ich wird berechnet… (ca. 20 Sek.)');
+    const kg=+(+now).toFixed(1),diff=(kg-zg).toFixed(1);
+    const prompt=`Edit this photo of a real adult person (the user themself, who consented) to show a realistic, healthy preview of how they could look at their goal body weight.
+Current: ${kg} kg, height ${+p.groesse||180} cm${+p.kfa?`, approx. ${p.kfa}% body fat`:''}, ${p.geschlecht==='w'?'female':'male'}, age ${+p.alter||30}. Goal: ${zg} kg (${diff} kg less, mostly body fat).
+STRICT RULES: same person, same face and identity, same skin tone, same hair, same pose, same camera angle, same clothes, same background and lighting. Only reduce body fat proportionally to the weight difference (slightly slimmer face, smaller waist and belly, slimmer arms and legs). Natural realistic proportions and skin texture, no extreme muscles, no six-pack unless body fat would really be that low, no beauty filter, do not change age. Photorealistic.`;
+    try{const r=await aiCall('goal_image',{imageBase64:b64,mimeType:'image/jpeg',text:prompt},'Dein Ziel-Ich wird berechnet… (ca. 20 Sek.)');
       const before=await shrinkDataUrl('data:image/jpeg;base64,'+b64),after=await shrinkDataUrl(`data:${r.mimeType};base64,${r.imageBase64}`);
       S.goalPic={date:todayStr(),kg:+(+now).toFixed(1),goal:zg,before,after};save();renderDash();
       document.querySelector('#goalPicBox')?.scrollIntoView({behavior:'smooth',block:'center'});toast('✨ Dein Ziel-Ich ist da');
