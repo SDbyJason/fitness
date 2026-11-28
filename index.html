@@ -2333,6 +2333,9 @@ function hcApply(m,quiet){
   if(!quiet){const t=(m.days||[]).find(d=>d.date===todayStr())||{};
     toast(`❤️ ${n} Tage übernommen · heute ${t.steps??'–'} Schritte · ${t.kcal_active??'–'} kcal aktiv`);}
 }
+function hcWhen(t){const d=new Date(t),hm=d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+  const k=x=>x.toDateString(),y=new Date(Date.now()-864e5);
+  return k(d)===k(new Date())?'heute '+hm:k(d)===k(y)?'gestern '+hm:d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})+' '+hm;}
 window.onEvidenceHealth=function(m){
   if(m.type==='permissions'){
     if(m.granted>0){S.hcLinked=true;save();hcHandAuth();
@@ -2406,7 +2409,7 @@ function renderHcDash(){
   ].join('');
   const wos=Array.from({length:7},(_,i)=>dstr(i)).flatMap(d=>((hcDay(d)||{}).workouts||[]).map(w=>({...w,d})));
   box.innerHTML=`<div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">❤️ Aktivität &amp; Gesundheit</h2>
-      <span class="sub" style="font-size:12px">Samsung Health${S.hcSyncedAt?' · '+new Date(S.hcSyncedAt).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):''}${HC?` · <a href="#" style="color:var(--acc)" onclick="hcSync(3);return false">aktualisieren</a>`:''}</span></div>
+      <span class="sub" style="font-size:12px">Samsung Health${S.hcSyncedAt?' · '+hcWhen(S.hcSyncedAt):''}${!HC&&S.hcSyncedAt&&Date.now()-S.hcSyncedAt>2*3600e3?' · <span style="color:var(--acc)">für neue Werte die Evidence-Fit-App am Handy öffnen</span>':''}${HC?` · <a href="#" style="color:var(--acc)" onclick="hcSync(3);return false">aktualisieren</a>`:''}</span></div>
     <div class="item" style="border-bottom:none;padding-bottom:4px"><div class="t"><b>🔥 Kalorienbilanz heute</b>
       <span>Ziel ${fmt(dayGoal(t))}${(S.kcalShift||{})[t]?' (verschoben)':''}${hcEatBack()?` + ${fmt(burn)} verbrannt`:''} − ${fmt(eaten)} gegessen</span></div>
       <b style="color:${rest>=0?'var(--acc2)':'var(--err)'};white-space:nowrap">${rest>=0?'noch '+fmt(rest):fmt(-rest)+' drüber'} kcal</b></div>
@@ -2421,8 +2424,11 @@ function renderHcDash(){
 if(location.hash==='#voice')setTimeout(()=>{history.replaceState(null,'',location.pathname);openAudioMeal();},1200);
 window.addEventListener('hashchange',()=>{if(location.hash==='#voice'){history.replaceState(null,'',location.pathname);openAudioMeal();}});
 // Beim Öffnen der App still nachladen (höchstens alle 30 Minuten)
-if(HC&&S.hcLinked&&Date.now()-(S.hcSyncedAt||0)>30*60e3)
-  setTimeout(()=>{try{if(HC.status()==='available')hcSync(3,true);}catch(e){}},1500);
+// + beim Zurückholen aus dem Hintergrund (Android lädt die Seite dann NICHT neu → vorher kam der Tag nie an)
+function hcAutoSync(){if(HC&&S.hcLinked&&Date.now()-(S.hcSyncedAt||0)>10*60e3){try{if(HC.status()==='available')hcSync(3,true);}catch(e){}}}
+setTimeout(hcAutoSync,1500);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(hcAutoSync,800);});
+setInterval(()=>{if(document.visibilityState==='visible')hcAutoSync();},15*60e3);
 
 /* ═══════════ ABNEHM-COACH: Plan, Wochen-Check mit Vorschlag zur Bestätigung, tägliche Hinweise ═══════════ */
 function cpFloor(){const p=S.profile||{};return Math.max(p.geschlecht==='w'?1200:1500,Math.round(hcBmr('x')*0.9/10)*10);}
