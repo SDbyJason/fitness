@@ -264,6 +264,33 @@ td{padding:8px 6px;border-top:1px solid var(--line)}
 .card,.sub,p,td,li{overflow-wrap:anywhere}
 input,select,textarea{max-width:100%}
 @media (max-width:520px){ .modal .row .btn{flex:1 1 100%;justify-content:center} }
+
+/* ═══ Navigation 2.0 (28.11.2026) ═══ */
+#subnav{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 0 18px;padding:4px;border-radius:16px;background:var(--track);position:sticky;top:8px;z-index:30}
+#subnav::-webkit-scrollbar{display:none}
+#subnav button{flex:1 0 auto;border:0;background:transparent;color:var(--mut);font:inherit;font-weight:700;font-size:13.5px;padding:10px 14px;border-radius:12px;cursor:pointer;white-space:nowrap;transition:background .2s,color .2s}
+#subnav button.on{background:var(--card,#fff);color:var(--txt);box-shadow:0 2px 10px rgba(0,0,0,.08)}
+#fab{flex:0 0 auto;align-self:center;width:52px;height:52px;margin:6px auto;border-radius:50%;border:0;background:var(--grad);color:var(--btn-txt,#fff);font-size:30px;line-height:1;box-shadow:0 8px 22px var(--btn-shadow2,rgba(209,85,37,.4));cursor:pointer;display:grid;place-items:center;padding:0 0 3px;transition:transform .15s}
+#fab:active{transform:scale(.92)}
+.qa-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:6px}
+.qa-it{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 6px;border-radius:16px;border:1px solid var(--line);background:var(--card,transparent);color:var(--txt);font:inherit;font-size:13px;font-weight:700;cursor:pointer;min-height:84px;justify-content:center}
+.qa-it span{font-size:26px;line-height:1}
+.qa-it.pri{background:var(--grad);color:var(--btn-txt,#fff);border-color:transparent}
+@media(max-width:860px){
+  nav{overflow-x:visible;justify-content:space-around;align-items:center;padding-left:4px;padding-right:4px;background:var(--nav-solid,var(--bg,#f6efe4))!important}
+  .nbtn{min-width:0;flex:1 1 0;padding:8px 2px;font-size:10.5px}
+  #fab{width:56px;height:56px;margin:-26px 4px 0;border:4px solid var(--nav-solid,var(--bg,#f6efe4))}
+  #subnav{top:calc(env(safe-area-inset-top,0px) + 6px)}
+  #subnav button{padding:10px 8px;font-size:13px}
+  main{padding-bottom:130px}
+}
+@media(max-width:860px) and (prefers-color-scheme:dark){nav,#fab{--nav-solid:#17140f}}
+}
+
+#fab b{font-weight:400}
+.fab-l{display:none}
+@media(min-width:861px){#fab{width:auto;height:auto;margin:10px 0 14px;border-radius:15px;padding:12px 15px;display:flex;align-items:center;gap:10px;font-size:15px;font-weight:700;justify-content:flex-start}
+  #fab b{font-size:22px;width:24px;text-align:center}.fab-l{display:inline}}
 </style>
 </head>
 <body>
@@ -272,17 +299,16 @@ input,select,textarea{max-width:100%}
 <div class="shell">
 <nav>
   <div class="logo notranslate" translate="no" data-noi18n>Evidence <span>Fit</span></div>
-  <button class="nbtn on" data-tab="dashboard"><span class="ic">◈</span>Dashboard</button>
-  <button class="nbtn" data-tab="insights"><span class="ic">🔗</span>Insights</button>
-  <button class="nbtn" data-tab="ernaehrung"><span class="ic">🥗</span>Ernährung</button>
-  <button class="nbtn" data-tab="rezepte"><span class="ic">🍳</span>Rezepte</button>
-  <button class="nbtn" data-tab="tipps"><span class="ic">💡</span>Tipps</button>
-  <button class="nbtn" data-tab="supplements"><span class="ic">💊</span>Supplements</button>
-  <button class="nbtn" data-tab="training"><span class="ic">🏋️</span>Training</button>
-  <button class="nbtn" data-tab="einstellungen"><span class="ic">⚙️</span>Setup</button>
+  <button class="nbtn on" data-tab="dashboard" data-grp="heute"><span class="ic">🏠</span>Heute</button>
+  <button class="nbtn" data-tab="ernaehrung" data-grp="essen"><span class="ic">🍽️</span>Essen</button>
+  <button id="fab" onclick="openQuickAdd()" aria-label="Schnell eintragen" title="Schnell eintragen"><b>＋</b><span class="fab-l">Schnell eintragen</span></button>
+  <button class="nbtn" data-tab="training" data-grp="training"><span class="ic">🏋️</span>Training</button>
+  <button class="nbtn" data-tab="fortschritt" data-grp="fortschritt"><span class="ic">📈</span>Fortschritt</button>
+  <button class="nbtn" data-tab="einstellungen" data-grp="ich"><span class="ic">👤</span>Ich</button>
 </nav>
 
 <main>
+  <div id="subnav" role="tablist"></div>
   <!-- ═══ DASHBOARD ═══ -->
   <section class="tab active" id="tab-dashboard">
     <div class="hero">
@@ -316,21 +342,27 @@ input,select,textarea{max-width:100%}
         </div>
       </div>
       <div class="card" id="checkinCard"></div>
-      <div class="card" id="dashStats"></div>
       <div class="card" id="readyCard" style="display:none"></div>
       <div class="card" id="cycleCard" style="display:none"></div>
     </div>
     <div class="card" id="insightCard" style="margin-top:16px;display:none"></div>
     <div class="card" id="coachBox" style="margin-top:16px;display:none"></div>
-    <div class="grid g2" style="margin-top:16px">
-      <div class="card" id="measureCard"></div>
-      <div class="card" id="achieveCard"></div>
-    </div>
+  </section>
+
+  <!-- ═══ FORTSCHRITT (28.11.2026: aus dem Dashboard ausgelagert) ═══ -->
+  <section class="tab" id="tab-fortschritt">
+    <h1>Fortschritt</h1>
+    <p class="sub">Gewicht, Körper, Training und Erfolge – auf einen Blick.</p>
+    <div class="card" id="dashStats"></div>
     <h2>📈 Verlauf</h2>
     <div class="grid g3">
       <div class="card"><b style="font-size:13px">Gewicht (30 Tage)</b><canvas id="chGewicht" style="width:100%;height:150px;margin-top:8px"></canvas></div>
       <div class="card"><b style="font-size:13px">Tonnage / Woche (8 Wochen)</b><canvas id="chTonnage" style="width:100%;height:150px;margin-top:8px"></canvas></div>
       <div class="card"><b style="font-size:13px" id="chOrmTitle">1RM-Verlauf</b><canvas id="chOrm" style="width:100%;height:150px;margin-top:8px"></canvas></div>
+    </div>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="card" id="measureCard"></div>
+      <div class="card" id="achieveCard"></div>
     </div>
   </section>
 
@@ -490,7 +522,7 @@ input,select,textarea{max-width:100%}
   <!-- ═══ EINSTELLUNGEN ═══ -->
   <section class="tab" id="tab-einstellungen">
     <h1>Setup</h1>
-    <p class="sub">Profil, Ziele &amp; KI-Verbindung. <span style="opacity:.6;font-size:11px">· Version v33</span></p>
+    <p class="sub">Profil, Ziele &amp; KI-Verbindung. <span style="opacity:.6;font-size:11px">· Version v34</span></p>
     <div class="card" id="rfCard">
       <h2 style="margin-top:0">🚩 Red Flags – das esse ich nicht</h2>
       <p class="sub" style="margin-top:0">Was hier steht, kommt in der ganzen App nicht mehr vor: Rezepte, Tages- &amp; Wochenplan, Coach, Snack-Ideen, Clever tauschen, Speisekarte und Tipps.</p>
@@ -812,12 +844,43 @@ function closeModal(){$('#overlay').classList.remove('show');}
 $('#overlay').addEventListener('click',e=>{if(e.target.id==='overlay')closeModal();});
 
 /* ═══════════ TABS ═══════════ */
-document.querySelectorAll('.nbtn').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+document.querySelectorAll('.nbtn').forEach(b=>b.onclick=()=>showTab(b.dataset.grp||b.dataset.tab));
+/* Navigation (28.11.2026): 5 Bereiche, Unter-Tabs als Segment-Leiste oben */
+const NAV_GROUPS={
+  heute:[['dashboard','Heute']],
+  essen:[['ernaehrung','Tagebuch'],['rezepte','Rezepte'],['supplements','Supplements'],['tipps','Tipps']],
+  training:[['training','Training']],
+  fortschritt:[['fortschritt','Übersicht'],['insights','Insights']],
+  ich:[['einstellungen','Ich']]
+};
+const TAB_GRP={};Object.entries(NAV_GROUPS).forEach(([g,l])=>l.forEach(([t])=>TAB_GRP[t]=g));
+const LAST_SUB={};
 function showTab(id){
-  document.querySelectorAll('.nbtn').forEach(b=>b.classList.toggle('on',b.dataset.tab===id));
+  if(NAV_GROUPS[id])id=LAST_SUB[id]||NAV_GROUPS[id][0][0];      // Gruppe → letzter Unter-Tab
+  if(!document.getElementById('tab-'+id))id='dashboard';
+  const g=TAB_GRP[id]||'heute';LAST_SUB[g]=id;
+  document.querySelectorAll('.nbtn').forEach(b=>b.classList.toggle('on',b.dataset.grp===g));
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.id==='tab-'+id));
-  ({dashboard:renderDash,ernaehrung:renderNutrition,rezepte:renderRecipes,tipps:renderTips,
+  const sn=document.getElementById('subnav'),subs=NAV_GROUPS[g];
+  if(sn){sn.innerHTML=subs.length>1?subs.map(([t,l])=>`<button role="tab" aria-selected="${t===id}" class="${t===id?'on':''}" onclick="showTab('${t}')">${l}</button>`).join(''):'';
+    sn.style.display=subs.length>1?'':'none';}
+  ({dashboard:renderDash,fortschritt:renderDash,ernaehrung:renderNutrition,rezepte:renderRecipes,tipps:renderTips,
     supplements:renderSupps,training:renderTraining,einstellungen:renderSettings})[id]?.();
+  if(id==='insights'&&typeof renderInsights==='function')try{renderInsights();}catch(e){}
+  try{window.scrollTo({top:0,behavior:'instant'});}catch(e){window.scrollTo(0,0);}
+}
+/* ➕ Schnell eintragen – von überall erreichbar */
+function openQuickAdd(){
+  const t=(fn)=>`closeModal();setTimeout(()=>{${fn}},60)`;
+  const it=(ic,l,fn,pri)=>`<button class="qa-it${pri?' pri':''}" onclick="${t(fn)}"><span>${ic}</span>${l}</button>`;
+  modal(`<div class="mhead"><h3>Schnell eintragen</h3><button class="x" onclick="closeModal()">✕</button></div>
+    <div class="qa-grid">
+      ${it('📷','Essen-Foto',"scanPhoto('food_photo')",1)}${it('📡','Barcode','scanBarcodeLive()',1)}${it('🎤','Sprechen','openAudioMeal()',1)}
+      ${it('⌨️','Text','openTextMeal()')}${it('🏷️','Verpackung',"scanPhoto('barcode_label')")}${it('✍️','Manuell','openManualMeal()')}
+      ${it('🍽️','Auswärts','openRestaurantMeal()')}${it('↩️','Wie gestern','copyYesterday()')}${it('💧','+250 ml','addWater(250);toast(\'💧 +250 ml\')')}
+      ${it('⚖️','Gewicht',"showTab('dashboard');setTimeout(()=>{const e=document.getElementById('bioGewicht');e&&(e.scrollIntoView({block:'center'}),e.focus())},120)")}
+      ${it('🏋️','Workout',"showTab('training')")}${it('🤖','Coach','openCoachChat()')}
+    </div>`);
 }
 
 /* ═══════════ KI-CALL ═══════════ */
@@ -1774,7 +1837,7 @@ function loadScript(src){return new Promise((res,rej)=>{
 if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}
 /* Auto-Update (28.11.2026): Die Android-App lädt beim Zurückholen nicht neu → neue Versionen kamen erst nach
    komplettem Schließen an. Jetzt: beim Öffnen/Zurückkehren Version prüfen und bei Bedarf still neu laden. */
-const APP_BUILD='apexfit-v33';
+const APP_BUILD='apexfit-v34';
 async function checkAppUpdate(){
   try{
     if(document.querySelector('#overlay.show'))return;             // nicht mitten in einem Dialog
