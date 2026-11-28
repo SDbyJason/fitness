@@ -3878,6 +3878,10 @@ if(window.renderLangSelect)renderLangSelect();
   /* Plan-Anzeige unter dem Logo (24.10.2026): Free · Pro (Abo) · Pro über Evidence.
      Klick führt zur Karte „Abo & Evidence“ im Setup. */
   A.chip = function(){
+    // 28.11.2026: Badge aus der Navigation entfernt (passte nicht rein). Abo-Status steht in Setup → „Abo & Evidence“,
+    // Free-Nutzer landen beim ersten KI-Klick ohnehin in der Paywall.
+    var old = document.getElementById('faChip'); if (old) old.remove();
+    return;
     var logo = document.querySelector('nav .logo'); if (!logo) return;
     var el = document.getElementById('faChip');
     if (!el) { el = document.createElement('button'); el.id = 'faChip'; el.type = 'button';
