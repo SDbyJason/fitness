@@ -291,6 +291,34 @@ input,select,textarea{max-width:100%}
 .fab-l{display:none}
 @media(min-width:861px){#fab{width:auto;height:auto;margin:10px 0 14px;border-radius:15px;padding:12px 15px;display:flex;align-items:center;gap:10px;font-size:15px;font-weight:700;justify-content:flex-start}
   #fab b{font-size:22px;width:24px;text-align:center}.fab-l{display:inline}}
+
+/* ═══ Heute 2.0 ═══ */
+.hero-date{margin:0 0 6px;font-size:13px;font-weight:700;letter-spacing:.02em;color:var(--mut);text-transform:capitalize}
+.budget{display:flex;align-items:center;gap:22px}
+.ring.big{width:150px;height:150px;flex:0 0 auto}
+.ring.big .in b{font-size:30px}
+.budget-r{flex:1;min-width:0;display:flex;flex-direction:column;gap:12px}
+.budget-sum{font-size:13px;color:var(--mut)}
+.mbar-h{display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px}.mbar-h span{color:var(--mut)}
+.mbar-t{height:9px;border-radius:9px;background:var(--track);overflow:hidden}.mbar-t i{display:block;height:100%;border-radius:9px;transition:width .6s}
+.qchips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -4px;padding:2px 4px 4px}.qchips::-webkit-scrollbar{display:none}
+.qchip{flex:0 0 auto;display:flex;align-items:center;gap:7px;padding:10px 14px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--txt);font:inherit;font-size:13.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+.qchip span{font-size:17px}
+@media(max-width:860px){
+  .hero{min-height:200px}.hero .txt{padding:24px 22px;max-width:72%}
+  .hero h1{font-size:28px}
+  .budget{gap:16px}.ring.big{width:124px;height:124px}.ring.big .in b{font-size:25px}
+}
+@media(max-width:400px){.hero .txt{max-width:80%}}
+
+details.ck-fold>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;font-size:19px;font-weight:800}
+details.ck-fold>summary::-webkit-details-marker{display:none}
+details.ck-fold>summary small{font-size:12.5px;font-weight:700;color:var(--mut);display:flex;align-items:center;gap:6px}
+details.ck-fold>summary small::after{content:'▾';font-size:14px;transition:transform .2s}
+details.ck-fold[open]>summary small::after{transform:rotate(180deg)}
+details.ck-fold[open]>summary{margin-bottom:14px}
+.bio-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.bio-grid label{margin-top:0}
 </style>
 </head>
 <body>
@@ -313,33 +341,30 @@ input,select,textarea{max-width:100%}
   <section class="tab active" id="tab-dashboard">
     <div class="hero">
       <div class="txt">
-        <h1>Trainiere <em>smarter</em>,<br>nicht nur härter.</h1>
-        <p class="sub" style="margin:10px 0 18px">Dein KI-gestütztes Logbuch für Kraft, Calisthenics &amp; Ernährung.</p>
+        <p class="hero-date" id="heroDate"></p>
+        <h1 id="heroHello">Trainiere <em>smarter</em>,<br>nicht nur härter.</h1>
+        <p class="sub" id="heroSub" style="margin:10px 0 18px">Dein KI-gestütztes Logbuch für Kraft, Calisthenics &amp; Ernährung.</p>
         <div class="row"><button class="btn" onclick="openCoachChat()">🤖 KI-Coach fragen</button>
         <button class="btn ghost" id="installBtn" style="display:none" onclick="installPWA()">📲 App installieren</button></div>
       </div>
       <div id="hero3d"></div>
     </div>
-    <div class="card" id="evCard" style="margin:18px 0 4px;display:none"></div>
-    <h2>Heute</h2>
-    <div class="card" id="quickBar" style="margin-bottom:16px"></div>
-    <div class="grid g4" id="dashRings"></div>
+    <div class="card budget-card" id="dashRings" style="margin-top:16px"></div>
     <div class="card" id="coachPlan" style="margin-top:16px"></div>
+    <div class="card" id="quickBar" style="margin-top:16px"></div>
     <div class="card" id="hcDash" style="margin-top:16px;display:none"></div>
     <div class="grid g2" style="margin-top:16px">
       <div class="card">
         <h2 style="margin-top:0">📊 Biometrie heute</h2>
-        <div class="grid g4" style="gap:10px">
-          <div><label>Gewicht kg</label><input type="number" step="0.1" id="bioGewicht"></div>
-          <div><label>KFA %</label><input type="number" step="0.1" id="bioKfa"></div>
-          <div><label>Ruhepuls</label><input type="number" id="bioRhr"></div>
-          <div><label>Schlaf h</label><input type="number" step="0.5" id="bioSchlaf"></div>
+        <div class="bio-grid">
+          <div><label>Gewicht kg</label><input type="number" inputmode="decimal" step="0.1" id="bioGewicht"></div>
+          <div><label>KFA %</label><input type="number" inputmode="decimal" step="0.1" id="bioKfa"></div>
+          <div><label>Ruhepuls</label><input type="number" inputmode="numeric" id="bioRhr"></div>
+          <div><label>Schlaf h</label><input type="number" inputmode="decimal" step="0.5" id="bioSchlaf"></div>
+          <div><label>Schritte</label><input type="number" inputmode="numeric" id="bioSchritte"></div>
+          <div><label>HRV ms</label><input type="number" inputmode="numeric" id="bioHrv"></div>
         </div>
-        <div class="row" style="margin-top:14px;justify-content:space-between">
-          <div style="flex:1;min-width:110px"><label style="margin-top:0">Schritte</label><input type="number" id="bioSchritte"></div>
-          <div style="flex:1;min-width:90px"><label style="margin-top:0">HRV ms</label><input type="number" id="bioHrv"></div>
-          <button class="btn sm" style="margin-top:22px" onclick="saveBio()">Speichern</button>
-        </div>
+        <button class="btn" style="width:100%;margin-top:14px;justify-content:center" onclick="saveBio()">Speichern</button>
       </div>
       <div class="card" id="checkinCard"></div>
       <div class="card" id="readyCard" style="display:none"></div>
@@ -347,6 +372,7 @@ input,select,textarea{max-width:100%}
     </div>
     <div class="card" id="insightCard" style="margin-top:16px;display:none"></div>
     <div class="card" id="coachBox" style="margin-top:16px;display:none"></div>
+    <div class="card" id="evCard" style="margin-top:16px;display:none"></div>
   </section>
 
   <!-- ═══ FORTSCHRITT (28.11.2026: aus dem Dashboard ausgelagert) ═══ -->
@@ -522,7 +548,7 @@ input,select,textarea{max-width:100%}
   <!-- ═══ EINSTELLUNGEN ═══ -->
   <section class="tab" id="tab-einstellungen">
     <h1>Setup</h1>
-    <p class="sub">Profil, Ziele &amp; KI-Verbindung. <span style="opacity:.6;font-size:11px">· Version v34</span></p>
+    <p class="sub">Profil, Ziele &amp; KI-Verbindung. <span style="opacity:.6;font-size:11px">· Version v35</span></p>
     <div class="card" id="rfCard">
       <h2 style="margin-top:0">🚩 Red Flags – das esse ich nicht</h2>
       <p class="sub" style="margin-top:0">Was hier steht, kommt in der ganzen App nicht mehr vor: Rezepte, Tages- &amp; Wochenplan, Coach, Snack-Ideen, Clever tauschen, Speisekarte und Tipps.</p>
@@ -1740,9 +1766,34 @@ function saveBio(){
   if(e.gewicht){S.profile.gewicht=e.gewicht;e._wManual=true;}if(e.kfa)S.profile.kfa=e.kfa;
   save();renderDash();toast('Biometrie gespeichert ✓');
 }
+/* Heute: ein Budget-Ring + 3 Makro-Balken statt 4 großer Ringe (28.11.2026) */
+function budgetHTML(t){
+  const T=S.targets,burn=(typeof hcBurn==='function'&&t.date&&hcEatBack())?hcBurn(t.date):0;
+  const kg=(t.date&&typeof dayGoal==='function'?dayGoal(t.date):T.kalorien)+burn,left=Math.round(kg-(t.kalorien||0)),over=left<0;
+  const bar=(n,v,m,c)=>{const pc=Math.min(100,(v||0)/(m||1)*100);return `<div class="mbar"><div class="mbar-h"><b>${n}</b><span>${fmt(v)} / ${fmt(m)} g</span></div>
+    <div class="mbar-t"><i style="width:${pc}%;background:${c}"></i></div></div>`;};
+  return `<div class="budget">
+    <div class="ring big" style="--p:${Math.min(100,(t.kalorien||0)/(kg||1)*100)};--c:${over?'var(--err)':'#d15525'}"><div class="in">
+      <b style="${over?'color:var(--err)':''}">${fmt(Math.abs(left))}</b><span>${over?'kcal drüber':'kcal übrig'}</span></div></div>
+    <div class="budget-r">
+      <div class="budget-sum">${fmt(t.kalorien)} gegessen · Ziel ${fmt(kg)}${burn?` <span title="verbrannt laut Samsung Health">(+${fmt(burn)} 🔥)</span>`:''}</div>
+      ${bar('Protein',t.protein_g,T.protein,'#3f8f6b')}${bar('Carbs',t.kohlenhydrate_g,T.kohlenhydrate,'#b3862d')}${bar('Fett',t.fett_g,T.fett,'#7d5ba6')}
+    </div></div>`;
+}
+function renderHero(t){
+  const h=new Date().getHours(),n=(S.profile&&S.profile.name||'').split(' ')[0];
+  const gr=h<5?'Gute Nacht':h<11?'Guten Morgen':h<17?'Hallo':h<22?'Guten Abend':'Gute Nacht';
+  const d=$('#heroDate');if(d)d.textContent=new Date().toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long'});
+  const e=$('#heroHello');if(e)e.innerHTML=`${gr}${n?`, <em>${esc(n)}</em>`:''}`;
+  const T=S.targets,burn=(typeof hcBurn==='function'&&hcEatBack())?hcBurn(todayStr()):0;
+  const kg=(typeof dayGoal==='function'?dayGoal(todayStr()):T.kalorien)+burn,left=Math.round(kg-(t.kalorien||0));
+  const pr=Math.max(0,Math.round((T.protein||0)-(t.protein_g||0)));
+  const sb=$('#heroSub');if(sb)sb.textContent=!t.kalorien?'Noch nichts eingetragen – tipp auf ＋ und fotografier deine erste Mahlzeit.':
+    left<0?`Du bist ${fmt(-left)} kcal über deinem Ziel – morgen ist ein neuer Tag.`:pr>20?`Noch ${fmt(left)} kcal und ${pr} g Protein für heute.`:`Noch ${fmt(left)} kcal frei – Protein ist fast geschafft 💪`;
+}
 function renderDash(){
   try{if(typeof syncProfileWeight==='function'&&syncProfileWeight())localStorage.setItem('apexfit',JSON.stringify(S));}catch(e){}
-  $('#dashRings').innerHTML=ringsHTML(dayTotals(todayStr()));
+  {const _t=dayTotals(todayStr());$('#dashRings').innerHTML=budgetHTML(_t);try{renderHero(_t);}catch(e){}}
   const b=S.biometrics.find(x=>x.date===todayStr())||{};
   $('#bioGewicht').value=b.gewicht||'';$('#bioGewicht').placeholder=S.profile.gewicht?fmt(S.profile.gewicht,1):'';$('#bioKfa').value=b.kfa||'';
   $('#bioRhr').value=b.rhr||'';$('#bioSchlaf').value=b.schlaf||'';$('#bioSchritte').value=b.schritte||'';
@@ -1837,7 +1888,7 @@ function loadScript(src){return new Promise((res,rej)=>{
 if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}
 /* Auto-Update (28.11.2026): Die Android-App lädt beim Zurückholen nicht neu → neue Versionen kamen erst nach
    komplettem Schließen an. Jetzt: beim Öffnen/Zurückkehren Version prüfen und bei Bedarf still neu laden. */
-const APP_BUILD='apexfit-v34';
+const APP_BUILD='apexfit-v35';
 async function checkAppUpdate(){
   try{
     if(document.querySelector('#overlay.show'))return;             // nicht mitten in einem Dialog
@@ -2983,10 +3034,10 @@ function betHTML(){const b=S.bet;if(!b)return `<a href="#" style="font-size:12.5
     ${b.won||over?` <a href="#" style="font-size:12px;color:var(--acc)" onclick="S.bet=null;save();renderDash();return false">neu</a>`:''}</div>`;}
 // Schnellzugriff-Leiste im Dashboard
 function renderQuickBar(){const box=$('#quickBar');if(!box)return;const hab=habitSuggestion(),peak=sosPeakHour(),h=new Date().getHours(),wb=weekBudget();
-  const b=(ic,t,fn)=>`<button class="btn sm ghost" style="flex:1;min-width:30%;padding:10px 6px;font-size:13px" onclick="${fn}">${ic}<br>${t}</button>`;
+  const b=(ic,t,fn)=>`<button class="qchip" onclick="${fn}"><span>${ic}</span>${t}</button>`;
   box.innerHTML=`${hab?`<div class="item" style="border:none;padding:0 0 10px"><div class="t"><b>🔁 Wie immer?</b><span>${esc(hab.label||'')} · ${fmt(hab.gesamt?.kalorien)} kcal</span></div><button class="btn sm" onclick="habitLog()">✓ Eintragen</button></div>`:''}
     ${peak!=null&&h===peak-1?`<p style="margin:0 0 10px;font-size:13.5px">⚠️ Um ${peak} Uhr kommt bei dir oft Heißhunger – plane jetzt einen Snack ein.</p>`:''}
-    <div class="row" style="gap:8px">${b('🧊','Kühlschrank','fridgeScan()')}${b('😋','Snack-Lust','snackPicker()')}${b('🆘','Heißhunger','sosOpen()')}
+    <b style="display:block;margin-bottom:10px">✨ Schnellhilfe</b><div class="qchips">${b('🧊','Kühlschrank','fridgeScan()')}${b('😋','Snack-Lust','snackPicker()')}${b('🆘','Heißhunger','sosOpen()')}
     ${b('🔄','Clever tauschen','swapPicker()')}${b('🍽️','Speisekarte','menuScan()')}${b('🎤','Per Sprache','openAudioMeal()')}</div>
     <p class="sub" style="margin:10px 0 0;font-size:12.5px">📅 Woche: ${fmt(wb.used)} von ${fmt(wb.budget)} kcal · <a href="#" style="color:var(--acc)" onclick="eventPlanner();return false">Anlass vorplanen</a></p>`;}
 
@@ -4503,7 +4554,21 @@ if(window.renderLangSelect)renderLangSelect();
     }
     return out.join('');
   }
-  C.render = function(){
+  C.render = function(){ C._render(); C._fold(); };
+  /* 28.11.2026: Check-in einklappbar – spart am Handy fast einen Bildschirm */
+  C._fold = function(){
+    var el = document.getElementById('checkinCard'); if (!el) return;
+    var h2 = el.querySelector('h2'); if (!h2 || el.querySelector('details.ck-fold')) return;
+    var x = ci(today()), done = ['q','energie','stimmung','stress'].filter(function(k){ return x[k]; }).length + (x.bed&&x.wake?1:0);
+    var det = document.createElement('details'); det.className = 'ck-fold'; if (window._ckOpen) det.open = true;
+    det.ontoggle = function(){ window._ckOpen = det.open; };
+    var sum = document.createElement('summary');
+    sum.innerHTML = '<span>🌙 Schlaf &amp; Check-in</span><small>' + (done >= 5 ? '✓ erledigt' : done + '/5 ausgefüllt') + '</small>';
+    det.appendChild(sum); h2.remove();
+    while (el.firstChild) det.appendChild(el.firstChild);
+    el.appendChild(det);
+  };
+  C._render = function(){
     var el = document.getElementById('checkinCard'); if (!el) return;
     var d = today(), x = ci(d), h = C.hours(x.bed, x.wake);
     var caf = (S.caffeine||{})[d] || [], mg = caf.reduce(function(a, c){ return a + (+c.mg||0); }, 0);
