@@ -2796,8 +2796,17 @@ function shrinkDataUrl(src,max=520,q=0.62){return new Promise(r=>{const im=new I
 function goalImageStart(){
   const P=S.coachPlan||{},zg=+P.goal||+S.profile.zielgewicht;
   if(!zg)return toast('Starte zuerst den Abnehm-Plan mit Zielgewicht','err');
-  if(!confirm('📸 Mein Ziel-Ich\n\nMach ein Ganzkörperfoto von DIR (gut beleuchtet, eng anliegende Kleidung, gerade stehen). Die KI zeigt eine realistische Vorschau bei '+fmt(zg,1)+' kg.\n\nBitte nur ein Foto von dir selbst verwenden. Das Ergebnis ist eine Schätzung, keine Vorhersage.\n\nWeiter?'))return;
-  const i=document.createElement('input');i.type='file';i.accept='image/*';i.capture='user';
+  modal(`<div class="mhead"><h3>📸 Mein Ziel-Ich</h3></div>
+    <p class="sub">Ein Ganzkörperfoto von DIR (gut beleuchtet, eng anliegende Kleidung, gerade stehen). Die KI zeigt eine realistische Vorschau bei ${fmt(zg,1)} kg.</p>
+    <p class="sub">Bitte nur ein Foto von dir selbst verwenden. Das Ergebnis ist eine Schätzung, keine Vorhersage.</p>
+    <div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap">
+      <button class="btn" onclick="closeModal();goalImagePick(true)">📷 Foto machen</button>
+      <button class="btn ghost" onclick="closeModal();goalImagePick(false)">🖼️ Bild hochladen</button>
+    </div>`);
+}
+function goalImagePick(cam){
+  const P=S.coachPlan||{},zg=+P.goal||+S.profile.zielgewicht;
+  const i=document.createElement('input');i.type='file';i.accept='image/*';if(cam)i.capture='user';
   i.onchange=async()=>{if(!i.files[0])return;const b64=await fileToB64(i.files[0],1280);
     const p=S.profile,now=cpTrend(14).now||+p.gewicht;
     const kg=+(+now).toFixed(1),diff=(kg-zg).toFixed(1);
