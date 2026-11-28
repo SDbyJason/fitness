@@ -351,6 +351,12 @@ details.ck-fold[open]>summary{margin-bottom:14px}
 .rz-steps li{counter-increment:st;position:relative;padding:8px 0 8px 36px;font-size:14px;line-height:1.5;border-bottom:1px solid var(--line)}
 .rz-steps li:last-child{border-bottom:0}
 .rz-steps li::before{content:counter(st);position:absolute;left:0;top:8px;width:24px;height:24px;border-radius:50%;background:var(--grad);color:var(--btn-txt,#fff);font-size:12px;font-weight:800;display:grid;place-items:center}
+
+.wp-meal{display:flex;align-items:center;gap:10px;width:100%;text-align:left;margin:8px 0;padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:var(--card);color:var(--txt);font:inherit;cursor:pointer}
+.wp-meal:active{transform:scale(.99)}
+.wp-ic{font-size:20px;flex:0 0 auto}
+.wp-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.wp-t b{font-size:14px}.wp-t small{font-size:12px;color:var(--mut)}
+.wp-go{flex:0 0 auto;font-size:12.5px;font-weight:800;color:var(--acc)}
 </style>
 </head>
 <body>
@@ -590,7 +596,7 @@ details.ck-fold[open]>summary{margin-bottom:14px}
   <!-- ═══ EINSTELLUNGEN ═══ -->
   <section class="tab" id="tab-einstellungen">
     <h1>Ich</h1>
-    <p class="sub">Profil, Ziele, Verbindungen &amp; Einstellungen. <span style="opacity:.6;font-size:11px">· Version v42</span></p>
+    <p class="sub">Profil, Ziele, Verbindungen &amp; Einstellungen. <span style="opacity:.6;font-size:11px">· Version v43</span></p>
     <div class="card" id="rfCard">
       <h2 style="margin-top:0">🚩 Red Flags – das esse ich nicht</h2>
       <p class="sub" style="margin-top:0">Was hier steht, kommt in der ganzen App nicht mehr vor: Rezepte, Tages- &amp; Wochenplan, Coach, Snack-Ideen, Clever tauschen, Speisekarte und Tipps.</p>
@@ -1421,6 +1427,9 @@ function normRecipes(list){(list||[]).forEach(r=>{if(r&&typeof r==='object'){con
 /* Ausführliche Zubereitung nachladen (28.11.2026) */
 async function recipeHowTo(idx,saved){
   const r=(saved?S.recipes:window._genRecipes||[])[idx];if(!r)return;
+  await howToFor(r);if(saved)save();renderRecipes();toast('👨‍🍳 Anleitung ergänzt');
+}
+async function howToFor(r){
   const zut=(r.zutaten||[]).map(z=>`${z.menge||''} ${z.einheit||''} ${z.name}`.trim()).join(', ');
   const res=await aiCall('coach_chat',{text:`Schreibe für das Rezept „${r.name}“ (${r.portionen||1} Portion) eine vollständige Zutatenliste und eine ausführliche Schritt-für-Schritt-Anleitung. Bisherige Zutaten: ${zut}. Ergänze fehlende Komponenten (z. B. Dressing, Gewürze). Antworte NUR als JSON: {"zutaten":[{"name":"","menge":0,"einheit":"g"}],"zubereitung":["Schritt 1 …","Schritt 2 …"]} – mind. 5 Schritte mit Temperatur, Zeit und Fertig-Erkennung.`,context:{}},'Anleitung wird geschrieben…');
   let txt=res.antwort||res.answer||res.text||'',obj=null;
@@ -1431,8 +1440,36 @@ async function recipeHowTo(idx,saved){
       const old={};(r.zutaten||[]).forEach(z=>old[rfNorm(z.name)]=z);
       r.zutaten=obj.zutaten.map(z=>({...(old[rfNorm(z.name)]||{}),...z}));}
   }else if(txt){r.zubereitung=txt.split(/\n+/).map(x=>x.replace(/^\s*(\d+[.)]|[-•*])\s*/,'').trim()).filter(x=>x.length>3);}
-  if(saved)save();renderRecipes();toast('👨‍🍳 Anleitung ergänzt');
 }
+/* Rezept-Ansicht für Plan-Mahlzeiten (Wochen- & Tagesplan) – 28.11.2026 */
+function planMealRef(ref){const [k,a,b]=ref.split('|');
+  if(k==='w'){const t=(S.weeklyPlan?.tage||[])[+a];return t&&t[b];}
+  if(k==='d'){const p=(S.dailyPlans||{})[a];return p&&p[b];}return null;}
+function openPlanMeal(ref){
+  const r=planMealRef(ref);if(!r)return;
+  const M=recipeMacros(r),steps=r.zubereitung||[];
+  const amt=z=>{const q=+z.menge||0;return q?fmt(q,(q<10&&Math.abs(q-Math.round(q))>0.05)?1:0):'';};
+  modal(`<div class="mhead"><h3>${esc(r.name)}</h3><button class="x" onclick="closeModal()">✕</button></div>
+    ${r.beschreibung?`<p class="sub" style="margin-top:0">${esc(r.beschreibung)}</p>`:''}
+    <p style="font-size:13px;color:var(--acc2);font-weight:800;margin:0 0 12px">${fmt(M.kalorien)} kcal · P ${fmt(M.protein_g)}g · C ${fmt(M.kohlenhydrate_g)}g · F ${fmt(M.fett_g)}g${M._geschaetzt?' <span class="sub" style="font-weight:400">(≈)</span>':''}${+r.dauer_min?` · ⏱ ${fmt(r.dauer_min)} min`:''}</p>
+    <b style="font-size:14px">🛒 Zutaten${r.portionen?` <span class="sub" style="font-weight:400">(${r.portionen} Portion${r.portionen>1?'en':''})</span>`:''}</b>
+    <div style="margin:6px 0 14px">${(r.zutaten||[]).map(z=>`<div style="font-size:14px;padding:6px 0;border-bottom:1px solid var(--line)"><b>${amt(z)} ${esc(z.einheit||'')}</b> ${esc(z.name)}</div>`).join('')||'<p class="sub">Keine Zutaten angegeben.</p>'}</div>
+    <b style="font-size:14px">👨‍🍳 So bereitest du es zu</b>
+    ${steps.length?`<ol class="rz-steps">${steps.map(x=>`<li>${esc(x)}</li>`).join('')}</ol>`:'<p class="sub">Noch keine Anleitung vorhanden.</p>'}
+    ${(r.tipps||[]).length?`<div style="margin-top:10px">${r.tipps.map(t=>`<p style="margin:5px 0;font-size:13px;color:var(--mut)">💡 ${esc(t)}</p>`).join('')}</div>`:''}
+    <div class="row" style="margin-top:16px;gap:8px">
+      ${steps.length<4?`<button class="btn" onclick="planMealHowTo('${ref}')">📖 ${steps.length?'Ausführlicher':'Anleitung erstellen'}</button>`:''}
+      <button class="btn ${steps.length<4?'ghost':''}" onclick="planMealTrack('${ref}')">＋ Tracken</button>
+      <button class="btn ghost" onclick="planMealSave('${ref}')">💾 Speichern</button>
+    </div>`);
+}
+async function planMealHowTo(ref){const r=planMealRef(ref);if(!r)return;closeModal();await howToFor(r);save();try{renderWeekPlan();}catch(e){}try{renderRecipes();}catch(e){}openPlanMeal(ref);}
+function planMealTrack(ref){const r=planMealRef(ref);if(!r)return;const M=recipeMacros(r);closeModal();
+  addMeal({items:[{name:r.name,menge_g:0,kalorien:M.kalorien,protein_g:M.protein_g,kohlenhydrate_g:M.kohlenhydrate_g,fett_g:M.fett_g,quelle:'geschaetzt',mikros:{},aminos:{}}],
+    gesamt:{kalorien:M.kalorien,protein_g:M.protein_g,kohlenhydrate_g:M.kohlenhydrate_g,fett_g:M.fett_g}},'Plan');}
+function planMealSave(ref){const r=planMealRef(ref);if(!r)return;
+  if(S.recipes.some(x=>x.name===r.name))return toast('Schon gespeichert');
+  S.recipes.push(JSON.parse(JSON.stringify(r)));save();try{renderRecipes();}catch(e){}toast('💾 Rezept gespeichert');}
 function recipeCard(r,idx,saved){
   const port=r._port||r.portionen||1, f=port/(r.portionen||1);
   const preis=recipePrice(r,f);
@@ -1481,21 +1518,19 @@ async function genDailyPlan(force){
   S.dailyPlans[d]=res;rememberNames(meals(res).map(m=>m.name));
   save();renderRecipes();toast('Tagesplan für heute ✓');
 }
-function planMealCard(title,r){
-  if(!r)return '';
+function planMealCard(title,r,slot){
+  if(!r)return '';const M=recipeMacros(r);
   const preis=recipePrice(r);
   return `<div class="card"><span class="badge verifiziert" style="margin-bottom:8px;display:inline-block">${title}</span>
     <b style="display:block;font-size:15px">${esc(r.name)}</b>
     <p class="sub" style="margin:6px 0">${(r.zutaten||[]).map(z=>fmt(z.menge)+' '+esc(z.einheit||'')+' '+esc(z.name)).join(' · ')}</p>
-    <p style="font-size:12.5px;color:var(--acc2);font-weight:700">${fmt(r.makros?.kalorien)} kcal · P ${fmt(r.makros?.protein_g)}g${preis?` · 💶 ≈ ${fmt(preis,2)} €`:''}</p>
-    <details style="margin-top:8px"><summary style="cursor:pointer;font-size:12.5px;color:var(--acc)">Zubereitung${(r.tipps||[]).length?' & Tipps':''}</summary>
-      <ol style="margin:6px 0 0 18px;font-size:12.5px;color:var(--mut)">${(r.zubereitung||[]).map(s=>`<li>${esc(s)}</li>`).join('')}</ol>
-      ${(r.tipps||[]).length?r.tipps.map(t=>`<p style="margin:5px 0;font-size:12px;color:var(--mut)">💡 ${esc(t)}</p>`).join(''):''}</details></div>`;
+    <p style="font-size:12.5px;color:var(--acc2);font-weight:700">${fmt(M.kalorien)} kcal · P ${fmt(M.protein_g)}g · C ${fmt(M.kohlenhydrate_g)}g · F ${fmt(M.fett_g)}g${preis?` · 💶 ≈ ${fmt(preis,2)} €`:''}</p>
+    ${slot?`<button class="btn sm" style="margin-top:8px" onclick="openPlanMeal('d|${todayStr()}|${slot}')">👨‍🍳 Rezept &amp; Zubereitung</button>`:''}</div>`;
 }
 function renderRecipes(){
   $('#prefVorliebe').value=S.prefs.vorliebe;$('#autoPlanChk').checked=!!S.prefs.autoPlan;renderNogos();
   const p=S.dailyPlans[todayStr()];
-  $('#dailyPlanBox').innerHTML=p?planMealCard('🌅 Frühstück',p.fruehstueck)+planMealCard('☀️ Mittagessen',p.mittagessen)+planMealCard('🌙 Abendessen',p.abendessen)
+  $('#dailyPlanBox').innerHTML=p?planMealCard('🌅 Frühstück',p.fruehstueck,'fruehstueck')+planMealCard('☀️ Mittagessen',p.mittagessen,'mittagessen')+planMealCard('🌙 Abendessen',p.abendessen,'abendessen')
     :'<p class="sub">Noch kein Plan für heute – wird ab 00:01 automatisch erstellt (oder oben manuell).</p>';
   $('#recipeBox').innerHTML=(window._genRecipes||[]).map((r,i)=>recipeCard(r,i,0)).join('')||'<p class="sub">Klicke „Rezepte generieren".</p>';
   $('#savedRecipeBox').innerHTML=S.recipes.map((r,i)=>recipeCard(r,i,1)).join('')||'<p class="sub">Noch nichts gespeichert.</p>';
@@ -2030,7 +2065,7 @@ function loadScript(src){return new Promise((res,rej)=>{
 if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}
 /* Auto-Update (28.11.2026): Die Android-App lädt beim Zurückholen nicht neu → neue Versionen kamen erst nach
    komplettem Schließen an. Jetzt: beim Öffnen/Zurückkehren Version prüfen und bei Bedarf still neu laden. */
-const APP_BUILD='apexfit-v42';
+const APP_BUILD='apexfit-v43';
 async function checkAppUpdate(){
   try{
     if(document.querySelector('#overlay.show'))return;             // nicht mitten in einem Dialog
@@ -2299,13 +2334,13 @@ function renderWeekPlan(){
   const box=$('#weekPlanBox');if(!box)return;
   const w=S.weeklyPlan;
   if(!w){box.innerHTML='<p class="sub">Noch kein Wochenplan – die KI erstellt 21 Mahlzeiten + aggregierte Einkaufsliste.</p>';return;}
-  const mealRow=(m,ic)=>m?`<div style="margin:8px 0 8px 14px"><b style="font-size:13px">${ic} ${esc(m.name)}</b><br>
-    <span class="sub" style="font-size:12px">${(m.zutaten||[]).map(z=>fmt(z.menge)+' '+esc(z.einheit||'')+' '+esc(z.name)).join(' · ')} — ${fmt(m.makros?.kalorien)} kcal · P ${fmt(m.makros?.protein_g)}g</span></div>`:'';
+  const mealRow=(m,ic,ti,slot)=>{if(!m)return '';const M=recipeMacros(m);return `<button class="wp-meal" onclick="openPlanMeal('w|${ti}|${slot}')">
+    <span class="wp-ic">${ic}</span><span class="wp-t"><b>${esc(m.name)}</b><small>${fmt(M.kalorien)} kcal · P ${fmt(M.protein_g)}g · C ${fmt(M.kohlenhydrate_g)}g · F ${fmt(M.fett_g)}g</small></span><span class="wp-go">Rezept ›</span></button>`;};
   box.innerHTML=`<div class="grid g2">
     <div class="card"><h2 style="margin-top:0">🗓️ Woche ab ${esc(w.created)}</h2>
-      ${(w.tage||[]).map(t=>`<details style="padding:7px 0;border-bottom:1px solid var(--line)">
+      ${(w.tage||[]).map((t,ti)=>`<details style="padding:7px 0;border-bottom:1px solid var(--line)"${ti===0?' open':''}>
         <summary style="cursor:pointer;font-weight:700">${esc(t.tag)}</summary>
-        ${mealRow(t.fruehstueck,'🌅')}${mealRow(t.mittagessen,'☀️')}${mealRow(t.abendessen,'🌙')}</details>`).join('')}</div>
+        ${mealRow(t.fruehstueck,'🌅',ti,'fruehstueck')}${mealRow(t.mittagessen,'☀️',ti,'mittagessen')}${mealRow(t.abendessen,'🌙',ti,'abendessen')}</details>`).join('')}</div>
     <div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin-top:0">🛒 Einkaufsliste</h2>
       ${(w.einkaufsliste||[]).some(z=>!(+z.preis_eur))?'<button class="btn sm ghost" onclick="repriceWeekList()">💶 Preise ergänzen</button>':''}</div>
       ${(w.einkaufsliste||[]).map((z,i)=>`<div class="row" style="padding:5px 0;border-bottom:1px solid var(--line);flex-wrap:nowrap">
