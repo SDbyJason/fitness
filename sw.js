@@ -1,5 +1,5 @@
 /* Evidence Fit Service Worker – Offline-Cache + Web Push */
-const CACHE = 'apexfit-v31';  // Präfix bleibt (Cache-Namen der Nutzer), Version für das Umbenennen erhöht
+const CACHE = 'apexfit-v32';  // Präfix bleibt (Cache-Namen der Nutzer), Version für das Umbenennen erhöht
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -25,7 +25,7 @@ self.addEventListener('fetch', e => {
   // App-Navigation: Netz zuerst (frische Version), offline aus dem Cache
   if (req.mode === 'navigate') {
     e.respondWith(
-      fetch(req).then(r => { const cp = r.clone(); caches.open(CACHE).then(c => c.put('./index.html', cp)); return r; })
+      fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }).then(r => { const cp = r.clone(); caches.open(CACHE).then(c => c.put('./index.html', cp)); return r; })
         .catch(() => caches.match('./index.html'))
     );
     return;
