@@ -331,6 +331,17 @@ details.ck-fold[open]>summary{margin-bottom:14px}
 .card.acc:not(.open)>:not(h2){display:none!important}
 .card.acc:not(.open){padding-top:16px;padding-bottom:16px}
 .set-data .row{margin-top:0!important}
+
+.track-main{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.track-big{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:86px;border:0;border-radius:18px;background:var(--grad);color:var(--btn-txt,#fff);font:inherit;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 8px 20px var(--btn-shadow2,rgba(209,85,37,.3));transition:transform .15s}
+.track-big span{font-size:28px;line-height:1}
+.track-big:active{transform:scale(.96)}
+
+#tab-training:not([data-pane]) .tpane:not([data-pane=workout]),
+#tab-training[data-pane=workout] .tpane:not([data-pane=workout]),
+#tab-training[data-pane=uebungen] .tpane:not([data-pane=uebungen]),
+#tab-training[data-pane=skills] .tpane:not([data-pane=skills]),
+#tab-training[data-pane=analyse] .tpane:not([data-pane=analyse]){display:none}
 </style>
 </head>
 <body>
@@ -422,27 +433,29 @@ details.ck-fold[open]>summary{margin-bottom:14px}
 
   <!-- ═══ ERNÄHRUNG ═══ -->
   <section class="tab" id="tab-ernaehrung">
-    <h1>Ernährung</h1>
-    <p class="sub">KI-Scanner: Foto, Verpackung, Text oder Sprachnachricht – inkl. Mikronährstoff-Matrix.</p>
+    <h1>Tagebuch</h1>
+    <p class="sub">Fotografieren, scannen oder einsprechen – die KI rechnet Kalorien, Makros und Mikronährstoffe.</p>
     <div class="mini3d" id="nutri3d"></div>
     <div class="card" style="margin-bottom:18px">
       <div class="row" style="justify-content:space-between;margin-bottom:10px">
         <b>➕ Mahlzeit tracken</b>
         <input type="date" id="nutriDate" style="max-width:170px">
       </div>
-      <div class="row">
-        <button class="btn sm" onclick="scanPhoto('food_photo')">📷 Essen fotografieren</button>
-        <button class="btn sm" onclick="scanBarcodeLive()">📡 Barcode-Scanner</button>
-        <button class="btn sm" onclick="scanPhoto('barcode_label')">🏷️ Verpackung (KI)</button>
-        <button class="btn sm ghost" onclick="openTextMeal()">⌨️ Text</button>
-        <button class="btn sm ghost" onclick="openAudioMeal()">🎤 Audio</button>
-        <button class="btn sm ghost" onclick="openManualMeal()">✍️ Manuell</button>
-        <button class="btn sm ghost" onclick="openRestaurantMeal()">🍽️ Auswärts</button>
-        <button class="btn sm ghost" onclick="copyYesterday()">↩️ Gestern kopieren</button>
+      <div class="track-main">
+        <button class="track-big" onclick="scanPhoto('food_photo')"><span>📷</span>Foto</button>
+        <button class="track-big" onclick="scanBarcodeLive()"><span>📡</span>Barcode</button>
+        <button class="track-big" onclick="openAudioMeal()"><span>🎤</span>Sprechen</button>
+      </div>
+      <div class="qchips" style="margin-top:12px">
+        <button class="qchip" onclick="openTextMeal()"><span>⌨️</span>Text</button>
+        <button class="qchip" onclick="scanPhoto('barcode_label')"><span>🏷️</span>Verpackung</button>
+        <button class="qchip" onclick="openManualMeal()"><span>✍️</span>Manuell</button>
+        <button class="qchip" onclick="openRestaurantMeal()"><span>🍽️</span>Auswärts</button>
+        <button class="qchip" onclick="copyYesterday()"><span>↩️</span>Wie gestern</button>
       </div>
       <input type="file" id="photoInput" accept="image/*" hidden>
     </div>
-    <div class="grid g4" id="nutriRings" style="margin-bottom:18px"></div>
+    <div class="card budget-card" id="nutriRings" style="margin-bottom:18px"></div>
     <div class="card" id="fastCard" style="margin-bottom:18px"></div>
     <div class="card" id="waterCard" style="margin-bottom:18px"></div>
     <div class="card"><div id="mealList"></div></div>
@@ -523,6 +536,20 @@ details.ck-fold[open]>summary{margin-bottom:14px}
     <h1>Training</h1>
     <p class="sub">Workout-Builder mit Supersätzen, Live-Tracker, RPE/RIR, Tonnage &amp; 1RM.</p>
     <div class="mini3d" id="train3d"></div>
+    <div class="tpane" data-pane="workout">
+    <div class="row" style="margin-bottom:18px">
+      <button class="btn" onclick="openPlanEditor()">＋ Plan erstellen</button>
+      <button class="btn ghost" onclick="openTemplates()">📚 Vorlagen</button>
+      <button class="btn ghost" onclick="openPlateCalc()">🏋️ Plattenrechner</button>
+      <button class="btn ghost" onclick="runCoach()">🤖 Overload-Coach</button>
+    </div>
+    <div id="deloadBox"></div>
+    <div class="grid g3" id="planBox"></div>
+    <div id="liveBox" style="display:none;margin-top:20px"></div>
+    <h2>🗂️ Historie</h2>
+    <div class="card"><div id="logList"></div></div>
+    </div>
+    <div class="tpane" data-pane="uebungen">
     <div class="card" style="margin-bottom:18px">
       <h2 style="margin-top:0">🎓 Übungs-Coach &amp; Bibliothek</h2>
       <p class="sub" style="margin-bottom:12px">Frag, wie du eine Muskelgruppe trainierst (auch zu Hause ohne Geräte) oder wie eine Übung korrekt ausgeführt wird – jede Übung kommt mit animierter Bewegungs-Demo, Tipps &amp; typischen Fehlern.</p>
@@ -533,19 +560,8 @@ details.ck-fold[open]>summary{margin-bottom:14px}
       <div class="row" id="exChips" style="margin-top:12px"></div>
       <div id="exResult" style="margin-top:14px"></div>
     </div>
-    <div class="row" style="margin-bottom:18px">
-      <button class="btn" onclick="openPlanEditor()">＋ Plan erstellen</button>
-      <button class="btn ghost" onclick="openTemplates()">📚 Vorlagen</button>
-      <button class="btn ghost" onclick="openPlateCalc()">🏋️ Plattenrechner</button>
-      <button class="btn ghost" onclick="runCoach()">🤖 Overload-Coach</button>
     </div>
-    <div id="deloadBox"></div>
-    <div class="grid g3" id="planBox"></div>
-    <div id="liveBox" style="display:none;margin-top:20px"></div>
-    <h2>📊 Volumen-Landmarken <span style="font-weight:400;color:var(--mut);font-size:13px">harte Sätze pro Muskelgruppe / Woche (MEV–MRV, RP-Methodik)</span></h2>
-    <div class="card" id="volumeBox"></div>
-    <h2>📈 Analytics</h2>
-    <div class="grid g2"><div class="card" id="tonnageBox"></div><div class="card" id="ormBox"></div></div>
+    <div class="tpane" data-pane="skills">
     <h2>🤸 Skill-Progressionen</h2>
     <div class="row" style="margin-bottom:12px">
       <button class="btn sm ghost" onclick="openIsoTimer('')">⏱ Freier Isometrie-Timer</button>
@@ -553,14 +569,19 @@ details.ck-fold[open]>summary{margin-bottom:14px}
     </div>
     <div class="grid g3" id="treeBox"></div>
     <div class="card" id="radarBox" style="display:none;margin-top:12px"></div>
-    <h2>🗂️ Historie</h2>
-    <div class="card"><div id="logList"></div></div>
+    </div>
+    <div class="tpane" data-pane="analyse">
+    <h2>📊 Volumen-Landmarken <span style="font-weight:400;color:var(--mut);font-size:13px">harte Sätze pro Muskelgruppe / Woche (MEV–MRV, RP-Methodik)</span></h2>
+    <div class="card" id="volumeBox"></div>
+    <h2>📈 Analytics</h2>
+    <div class="grid g2"><div class="card" id="tonnageBox"></div><div class="card" id="ormBox"></div></div>
+    </div>
   </section>
 
   <!-- ═══ EINSTELLUNGEN ═══ -->
   <section class="tab" id="tab-einstellungen">
     <h1>Ich</h1>
-    <p class="sub">Profil, Ziele, Verbindungen &amp; Einstellungen. <span style="opacity:.6;font-size:11px">· Version v36</span></p>
+    <p class="sub">Profil, Ziele, Verbindungen &amp; Einstellungen. <span style="opacity:.6;font-size:11px">· Version v37</span></p>
     <div class="card" id="rfCard">
       <h2 style="margin-top:0">🚩 Red Flags – das esse ich nicht</h2>
       <p class="sub" style="margin-top:0">Was hier steht, kommt in der ganzen App nicht mehr vor: Rezepte, Tages- &amp; Wochenplan, Coach, Snack-Ideen, Clever tauschen, Speisekarte und Tipps.</p>
@@ -926,7 +947,7 @@ function setupLayout(){
 const NAV_GROUPS={
   heute:[['dashboard','Heute']],
   essen:[['ernaehrung','Tagebuch'],['rezepte','Rezepte'],['supplements','Supplements'],['tipps','Tipps']],
-  training:[['training','Training']],
+  training:[['training','Workout'],['training:uebungen','Übungen'],['training:skills','Skills'],['training:analyse','Analyse']],
   fortschritt:[['fortschritt','Übersicht'],['insights','Insights']],
   ich:[['einstellungen','Ich']]
 };
@@ -934,12 +955,15 @@ const TAB_GRP={};Object.entries(NAV_GROUPS).forEach(([g,l])=>l.forEach(([t])=>TA
 const LAST_SUB={};
 function showTab(id){
   if(NAV_GROUPS[id])id=LAST_SUB[id]||NAV_GROUPS[id][0][0];      // Gruppe → letzter Unter-Tab
+  const full=id;let pane=null;if(id.includes(':')){[id,pane]=id.split(':');}
+  if(id==='training'){const sec=document.getElementById('tab-training');if(sec)sec.dataset.pane=pane||'workout';}
   if(!document.getElementById('tab-'+id))id='dashboard';
-  const g=TAB_GRP[id]||'heute';LAST_SUB[g]=id;
+  const sid=id==='training'?(pane?full:'training'):id;
+  const g=TAB_GRP[sid]||TAB_GRP[id]||'heute';LAST_SUB[g]=sid;
   document.querySelectorAll('.nbtn').forEach(b=>b.classList.toggle('on',b.dataset.grp===g));
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.id==='tab-'+id));
   const sn=document.getElementById('subnav'),subs=NAV_GROUPS[g];
-  if(sn){sn.innerHTML=subs.length>1?subs.map(([t,l])=>`<button role="tab" aria-selected="${t===id}" class="${t===id?'on':''}" onclick="showTab('${t}')">${l}</button>`).join(''):'';
+  if(sn){sn.innerHTML=subs.length>1?subs.map(([t,l])=>`<button role="tab" aria-selected="${t===sid}" class="${t===sid?'on':''}" onclick="showTab('${t}')">${l}</button>`).join(''):'';
     sn.style.display=subs.length>1?'':'none';}
   ({dashboard:renderDash,fortschritt:renderDash,ernaehrung:renderNutrition,rezepte:renderRecipes,tipps:renderTips,
     supplements:renderSupps,training:renderTraining,einstellungen:renderSettings})[id]?.();
@@ -1240,7 +1264,7 @@ function ringsHTML(t){
 }
 function renderNutrition(){
   const d=nutriDate();
-  $('#nutriRings').innerHTML=ringsHTML(dayTotals(d));
+  $('#nutriRings').innerHTML=budgetHTML(dayTotals(d));
   const meals=S.meals[d]||[];
   $('#mealList').innerHTML=meals.length?meals.map(m=>`<div class="item"><div class="t">
       <b>${m.zeit} · ${esc(m.label)}</b>
@@ -1939,7 +1963,7 @@ function loadScript(src){return new Promise((res,rej)=>{
 if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}
 /* Auto-Update (28.11.2026): Die Android-App lädt beim Zurückholen nicht neu → neue Versionen kamen erst nach
    komplettem Schließen an. Jetzt: beim Öffnen/Zurückkehren Version prüfen und bei Bedarf still neu laden. */
-const APP_BUILD='apexfit-v36';
+const APP_BUILD='apexfit-v37';
 async function checkAppUpdate(){
   try{
     if(document.querySelector('#overlay.show'))return;             // nicht mitten in einem Dialog
@@ -4055,7 +4079,7 @@ function formCheck(n){
   modal(`<div class="mhead"><h3>🎥 ${esc(n)}</h3><button class="x" onclick="closeModal()">✕</button></div>
   <canvas class="exAnim" style="width:100%;height:200px;background:var(--field);border:1px solid var(--line);border-radius:14px"></canvas>
   <div class="row" style="margin-top:12px">
-    <button class="btn sm" onclick="closeModal();showTab('training');$('#exQ').value='Wie führe ich ${esc(n)} richtig aus?';askExercise()">🎓 Technik-Tipps holen</button>
+    <button class="btn sm" onclick="closeModal();showTab('training:uebungen');$('#exQ').value='Wie führe ich ${esc(n)} richtig aus?';askExercise()">🎓 Technik-Tipps holen</button>
     <button class="btn sm ghost" onclick="window.open('https://www.youtube.com/results?search_query='+encodeURIComponent('${esc(n)} richtige Ausführung'),'_blank')">▶ Video</button></div>`);
   mountExerciseAnim($('#overlay .exAnim'),resolveAnim(n),n);
 }
