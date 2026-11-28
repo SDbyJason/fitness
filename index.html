@@ -342,6 +342,15 @@ details.ck-fold[open]>summary{margin-bottom:14px}
 #tab-training[data-pane=uebungen] .tpane:not([data-pane=uebungen]),
 #tab-training[data-pane=skills] .tpane:not([data-pane=skills]),
 #tab-training[data-pane=analyse] .tpane:not([data-pane=analyse]){display:none}
+
+.rz-prep>summary{cursor:pointer;font-size:14px;font-weight:800;color:var(--acc);list-style:none;padding:8px 0}
+.rz-prep>summary::-webkit-details-marker{display:none}
+.rz-prep>summary::after{content:' ▾';font-size:12px}
+.rz-prep[open]>summary::after{content:' ▴'}
+.rz-steps{margin:6px 0 0;padding:0;list-style:none;counter-reset:st}
+.rz-steps li{counter-increment:st;position:relative;padding:8px 0 8px 36px;font-size:14px;line-height:1.5;border-bottom:1px solid var(--line)}
+.rz-steps li:last-child{border-bottom:0}
+.rz-steps li::before{content:counter(st);position:absolute;left:0;top:8px;width:24px;height:24px;border-radius:50%;background:var(--grad);color:var(--btn-txt,#fff);font-size:12px;font-weight:800;display:grid;place-items:center}
 </style>
 </head>
 <body>
@@ -581,7 +590,7 @@ details.ck-fold[open]>summary{margin-bottom:14px}
   <!-- ═══ EINSTELLUNGEN ═══ -->
   <section class="tab" id="tab-einstellungen">
     <h1>Ich</h1>
-    <p class="sub">Profil, Ziele, Verbindungen &amp; Einstellungen. <span style="opacity:.6;font-size:11px">· Version v40</span></p>
+    <p class="sub">Profil, Ziele, Verbindungen &amp; Einstellungen. <span style="opacity:.6;font-size:11px">· Version v42</span></p>
     <div class="card" id="rfCard">
       <h2 style="margin-top:0">🚩 Red Flags – das esse ich nicht</h2>
       <p class="sub" style="margin-top:0">Was hier steht, kommt in der ganzen App nicht mehr vor: Rezepte, Tages- &amp; Wochenplan, Coach, Snack-Ideen, Clever tauschen, Speisekarte und Tipps.</p>
@@ -996,10 +1005,10 @@ async function fitAuthHeaders(){
 const RF_TASKS_SKIP={food_text:1,food_audio:1,kfa_estimate:1,goal_image:1,price_lookup:1};
 function withRedFlags(task,payload){
   const rf=redFlags();if(RF_TASKS_SKIP[task])return payload;
-  if(!rf.length){const p={...payload};p.context={...(p.context&&typeof p.context==='object'?p.context:{}),pflicht_makros:'Jedes Rezept/Gericht MUSS makros mit kalorien, protein_g, kohlenhydrate_g und fett_g (Zahlen, pro angegebener Portion) enthalten.'};return p;}
+  if(!rf.length){const p={...payload};p.context={...(p.context&&typeof p.context==='object'?p.context:{}),pflicht_makros:'Jedes Rezept/Gericht MUSS makros mit kalorien, protein_g, kohlenhydrate_g und fett_g (Zahlen, pro angegebener Portion) enthalten. Die zutaten-Liste muss VOLLSTÄNDIG sein: jede Komponente einzeln mit Menge (z. B. Gurkensalat = Gurke, Joghurt, Dill, Essig, Salz, Pfeffer – nicht nur ‚Gurke‘), inkl. Gewürze, Öl, Soßen und Dressing. zubereitung = ausführliche Schritt-für-Schritt-Anleitung (mind. 5 Schritte) mit Mengen, Temperatur, Garzeit und woran man erkennt, dass es fertig ist; jede Beilage/jeder Salat bekommt eigene Schritte.'};return p;}
   const regel='STRENGE REGEL: Der Nutzer isst folgende Lebensmittel NIEMALS (Red Flags): '+rf.join(', ')+'. Schlage sie nirgends vor – nicht als Zutat, Beilage, Snack, Topping, Tausch-Idee oder Tipp – auch keine Varianten/Synonyme davon. Bei Speisekarten diese Gerichte meiden.';
   const p={...payload};
-  p.context={...(p.context&&typeof p.context==='object'?p.context:{}),pflicht_makros:'Jedes Rezept/Gericht MUSS makros mit kalorien, protein_g, kohlenhydrate_g und fett_g (Zahlen, pro angegebener Portion) enthalten.',red_flags_niemals:rf,no_gos:[...new Set([...(p.context?.no_gos||[]),...rf])],regel_red_flags:regel};
+  p.context={...(p.context&&typeof p.context==='object'?p.context:{}),pflicht_makros:'Jedes Rezept/Gericht MUSS makros mit kalorien, protein_g, kohlenhydrate_g und fett_g (Zahlen, pro angegebener Portion) enthalten. Die zutaten-Liste muss VOLLSTÄNDIG sein: jede Komponente einzeln mit Menge (z. B. Gurkensalat = Gurke, Joghurt, Dill, Essig, Salz, Pfeffer – nicht nur ‚Gurke‘), inkl. Gewürze, Öl, Soßen und Dressing. zubereitung = ausführliche Schritt-für-Schritt-Anleitung (mind. 5 Schritte) mit Mengen, Temperatur, Garzeit und woran man erkennt, dass es fertig ist; jede Beilage/jeder Salat bekommt eigene Schritte.',red_flags_niemals:rf,no_gos:[...new Set([...(p.context?.no_gos||[]),...rf])],regel_red_flags:regel};
   if(typeof p.text==='string'&&p.text)p.text=p.text+'\n\n('+regel+')';
   return p;
 }
@@ -1408,21 +1417,38 @@ function recipeMacros(r){
   est._geschaetzt=true;return est;
 }
 function normRecipes(list){(list||[]).forEach(r=>{if(r&&typeof r==='object'){const m=recipeMacros(r);r.makros={...(r.makros||{}),...m};}});return list;}
+
+/* Ausführliche Zubereitung nachladen (28.11.2026) */
+async function recipeHowTo(idx,saved){
+  const r=(saved?S.recipes:window._genRecipes||[])[idx];if(!r)return;
+  const zut=(r.zutaten||[]).map(z=>`${z.menge||''} ${z.einheit||''} ${z.name}`.trim()).join(', ');
+  const res=await aiCall('coach_chat',{text:`Schreibe für das Rezept „${r.name}“ (${r.portionen||1} Portion) eine vollständige Zutatenliste und eine ausführliche Schritt-für-Schritt-Anleitung. Bisherige Zutaten: ${zut}. Ergänze fehlende Komponenten (z. B. Dressing, Gewürze). Antworte NUR als JSON: {"zutaten":[{"name":"","menge":0,"einheit":"g"}],"zubereitung":["Schritt 1 …","Schritt 2 …"]} – mind. 5 Schritte mit Temperatur, Zeit und Fertig-Erkennung.`,context:{}},'Anleitung wird geschrieben…');
+  let txt=res.antwort||res.answer||res.text||'',obj=null;
+  if(res.zubereitung)obj=res;else{try{obj=JSON.parse((txt.match(/\{[\s\S]*\}/)||[])[0]);}catch(e){}}
+  if(obj&&Array.isArray(obj.zubereitung)&&obj.zubereitung.length){
+    r.zubereitung=obj.zubereitung.map(String);
+    if(Array.isArray(obj.zutaten)&&obj.zutaten.length>=(r.zutaten||[]).length){
+      const old={};(r.zutaten||[]).forEach(z=>old[rfNorm(z.name)]=z);
+      r.zutaten=obj.zutaten.map(z=>({...(old[rfNorm(z.name)]||{}),...z}));}
+  }else if(txt){r.zubereitung=txt.split(/\n+/).map(x=>x.replace(/^\s*(\d+[.)]|[-•*])\s*/,'').trim()).filter(x=>x.length>3);}
+  if(saved)save();renderRecipes();toast('👨‍🍳 Anleitung ergänzt');
+}
 function recipeCard(r,idx,saved){
   const port=r._port||r.portionen||1, f=port/(r.portionen||1);
   const preis=recipePrice(r,f);
   return `<div class="card">
     <b style="font-size:15.5px">${esc(r.name)}</b>
-    <p class="sub" style="margin:6px 0 10px">${esc(r.beschreibung||'')} · ⏱ ${fmt(r.dauer_min)} min${preis?` · 💶 ca. ${fmt(preis,2)} €`:''}</p>
+    <p class="sub" style="margin:6px 0 10px">${esc(r.beschreibung||'')}${+r.dauer_min?` · ⏱ ${fmt(r.dauer_min)} min`:''}${preis?` · 💶 ca. ${fmt(preis,2)} €`:''}</p>
     <div class="row" style="margin-bottom:8px"><label style="margin:0">Portionen</label>
       <input type="number" min="1" value="${port}" style="width:70px;padding:6px"
         onchange="scaleRecipe(${idx},${saved},this.value)"></div>
     ${(r.zutaten||[]).map(z=>`<div style="font-size:13px;padding:3px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px">
-      <span>${fmt((+z.menge||0)*f,(+z.menge||0)*f<10?1:0)} ${esc(z.einheit||'')} ${esc(z.name)}${z.marke?`<br><span class="sub" style="font-size:11px">🏷️ ${esc(z.marke)}</span>`:''}</span>
+      <span>${(()=>{const q=(+z.menge||0)*f;return q?fmt(q,(q<10&&Math.abs(q-Math.round(q))>0.05)?1:0):'';})()} ${esc(z.einheit||'')} ${esc(z.name)}${z.marke?`<br><span class="sub" style="font-size:11px">🏷️ ${esc(z.marke)}</span>`:''}</span>
       ${+z.preis_eur?`<b style="white-space:nowrap;color:var(--acc2)">${fmt(z.preis_eur*f,2)} €</b>`:''}</div>`).join('')}
     ${preis?`<div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0;font-weight:800"><span>Gesamt</span><span style="color:var(--acc2)">≈ ${fmt(preis,2)} €</span></div>`:''}
-    <details style="margin-top:10px"><summary style="cursor:pointer;font-size:13px;color:var(--acc)">👨‍🍳 Zubereitung${(r.tipps||[]).length?' & Tipps':''}</summary>
-      <ol style="margin:8px 0 0 18px;font-size:13px;color:var(--mut)">${(r.zubereitung||[]).map(s=>`<li style="margin:4px 0">${esc(s)}</li>`).join('')}</ol>
+    <details class="rz-prep" style="margin-top:12px" open><summary>👨‍🍳 So bereitest du es zu${(r.tipps||[]).length?' · Tipps':''}</summary>
+      ${(r.zubereitung||[]).length?`<ol class="rz-steps">${r.zubereitung.map(s=>`<li>${esc(s)}</li>`).join('')}</ol>`:''}
+      ${(r.zubereitung||[]).length<4?`<button class="btn sm ghost" style="margin-top:10px" onclick="recipeHowTo(${idx},${saved})">${(r.zubereitung||[]).length?'📖 Ausführlichere Anleitung':'📖 Anleitung erstellen'}</button>`:''}
       ${(r.tipps||[]).length?`<div style="margin-top:10px;font-size:12.5px"><b style="color:var(--acc)">💡 Profi-Tipps</b>
         ${r.tipps.map(t=>`<p style="margin:5px 0;color:var(--mut)">• ${esc(t)}</p>`).join('')}</div>`:''}</details>
     <p style="font-size:12.5px;color:var(--acc2);margin-top:10px;font-weight:700">
@@ -2004,7 +2030,7 @@ function loadScript(src){return new Promise((res,rej)=>{
 if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}
 /* Auto-Update (28.11.2026): Die Android-App lädt beim Zurückholen nicht neu → neue Versionen kamen erst nach
    komplettem Schließen an. Jetzt: beim Öffnen/Zurückkehren Version prüfen und bei Bedarf still neu laden. */
-const APP_BUILD='apexfit-v40';
+const APP_BUILD='apexfit-v42';
 async function checkAppUpdate(){
   try{
     if(document.querySelector('#overlay.show'))return;             // nicht mitten in einem Dialog
@@ -3036,7 +3062,11 @@ function fridgeScan(){const i=document.createElement('input');i.type='file';i.ac
   i.onchange=async()=>{if(!i.files[0])return;const b64=await fileToB64(i.files[0],1400);const r=cpRest();
     const ctx=prefsContext();
     ctx.hinweis=`Das angehängte Foto zeigt meinen KÜHLSCHRANK bzw. Vorrat. Erkenne die sichtbaren Lebensmittel und erzeuge 3 Rezepte, die HAUPTSÄCHLICH daraus bestehen. Ergänze nur Basis-Vorrat, den fast jeder hat (Nudeln, Reis, Kartoffeln, Eier, Haferflocken, Mehl, Milch, Öl, Butter, Zwiebeln, Knoblauch, Salz, Pfeffer, Paprikapulver, Brühe, Tomatenmark, Dosentomaten). Schreibe in "beschreibung" zuerst "Aus deinem Kühlschrank: …" mit den erkannten Zutaten. Jedes Rezept (1 Portion) höchstens ${Math.max(350,r.kcal)} kcal, viel Protein und Volumen.`;
-    try{const res=await aiCall('recipes',{context:ctx,imageBase64:b64,mimeType:'image/jpeg'},'Kühlschrank wird analysiert…');
+    if(redFlags().length)ctx.hinweis+=` WICHTIG: Auch wenn auf dem Foto folgende Lebensmittel zu sehen sind, verwende sie NICHT – der Nutzer isst sie nie: ${redFlags().join(', ')}. Baue die Rezepte nur aus den übrigen Lebensmitteln.`;
+    try{let res=await aiCall('recipes',{context:ctx,imageBase64:b64,mimeType:'image/jpeg'},'Kühlschrank wird analysiert…');
+      const bad=[...new Set((res.rezepte||[]).flatMap(nogoHits))];
+      if(bad.length){ctx.hinweis+=' Dein letzter Versuch enthielt verbotene Zutaten: '+bad.join(', ')+'. Diese garantiert NICHT verwenden.';
+        res=await aiCall('recipes',{context:ctx,imageBase64:b64,mimeType:'image/jpeg'},'Red Flags entfernt – neuer Versuch…');}
       window._genRecipes=(res.rezepte||[]).filter(x=>!nogoHits(x).length);rememberNames(window._genRecipes.map(x=>x.name));
       showTab('rezepte');renderRecipes();toast(`🧊 ${window._genRecipes.length} Gerichte aus deinem Kühlschrank`);
       $('#recipeBoxTitle')?.scrollIntoView({behavior:'smooth',block:'start'});}catch(e){}};i.click();}
