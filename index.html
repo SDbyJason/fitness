@@ -266,7 +266,7 @@ input,select,textarea{max-width:100%}
 @media (max-width:520px){ .modal .row .btn{flex:1 1 100%;justify-content:center} }
 
 /* ═══ Navigation 2.0 (28.11.2026) ═══ */
-#subnav{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 0 18px;padding:4px;border-radius:16px;background:var(--track);position:sticky;top:8px;z-index:30}
+#subnav{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 0 18px;padding:4px;border-radius:16px;background:linear-gradient(var(--track),var(--track)),var(--bg);box-shadow:0 4px 14px rgba(0,0,0,.06);position:sticky;top:8px;z-index:30}
 #subnav::-webkit-scrollbar{display:none}
 #subnav button{flex:1 0 auto;border:0;background:transparent;color:var(--mut);font:inherit;font-weight:700;font-size:13.5px;padding:10px 14px;border-radius:12px;cursor:pointer;white-space:nowrap;transition:background .2s,color .2s}
 #subnav button.on{background:var(--card,#fff);color:var(--txt);box-shadow:0 2px 10px rgba(0,0,0,.08)}
@@ -581,7 +581,7 @@ details.ck-fold[open]>summary{margin-bottom:14px}
   <!-- ═══ EINSTELLUNGEN ═══ -->
   <section class="tab" id="tab-einstellungen">
     <h1>Ich</h1>
-    <p class="sub">Profil, Ziele, Verbindungen &amp; Einstellungen. <span style="opacity:.6;font-size:11px">· Version v39</span></p>
+    <p class="sub">Profil, Ziele, Verbindungen &amp; Einstellungen. <span style="opacity:.6;font-size:11px">· Version v40</span></p>
     <div class="card" id="rfCard">
       <h2 style="margin-top:0">🚩 Red Flags – das esse ich nicht</h2>
       <p class="sub" style="margin-top:0">Was hier steht, kommt in der ganzen App nicht mehr vor: Rezepte, Tages- &amp; Wochenplan, Coach, Snack-Ideen, Clever tauschen, Speisekarte und Tipps.</p>
@@ -995,15 +995,23 @@ async function fitAuthHeaders(){
 // 🚩 Red Flags in JEDE KI-Anfrage (Rezepte, Pläne, Coach, Chat, Snacks, Speisekarte, Tipps, Insights …)
 const RF_TASKS_SKIP={food_text:1,food_audio:1,kfa_estimate:1,goal_image:1,price_lookup:1};
 function withRedFlags(task,payload){
-  const rf=redFlags();if(!rf.length||RF_TASKS_SKIP[task])return payload;
+  const rf=redFlags();if(RF_TASKS_SKIP[task])return payload;
+  if(!rf.length){const p={...payload};p.context={...(p.context&&typeof p.context==='object'?p.context:{}),pflicht_makros:'Jedes Rezept/Gericht MUSS makros mit kalorien, protein_g, kohlenhydrate_g und fett_g (Zahlen, pro angegebener Portion) enthalten.'};return p;}
   const regel='STRENGE REGEL: Der Nutzer isst folgende Lebensmittel NIEMALS (Red Flags): '+rf.join(', ')+'. Schlage sie nirgends vor – nicht als Zutat, Beilage, Snack, Topping, Tausch-Idee oder Tipp – auch keine Varianten/Synonyme davon. Bei Speisekarten diese Gerichte meiden.';
   const p={...payload};
-  p.context={...(p.context&&typeof p.context==='object'?p.context:{}),red_flags_niemals:rf,no_gos:[...new Set([...(p.context?.no_gos||[]),...rf])],regel_red_flags:regel};
+  p.context={...(p.context&&typeof p.context==='object'?p.context:{}),pflicht_makros:'Jedes Rezept/Gericht MUSS makros mit kalorien, protein_g, kohlenhydrate_g und fett_g (Zahlen, pro angegebener Portion) enthalten.',red_flags_niemals:rf,no_gos:[...new Set([...(p.context?.no_gos||[]),...rf])],regel_red_flags:regel};
   if(typeof p.text==='string'&&p.text)p.text=p.text+'\n\n('+regel+')';
   return p;
 }
 async function aiCall(task,payload={},msg='KI denkt nach…'){
   payload=withRedFlags(task,payload);
+  const _res=await _aiCall(task,payload,msg);try{normAiResult(_res);}catch(e){}return _res;
+}
+function normAiResult(res){if(!res||typeof res!=='object')return;
+  if(Array.isArray(res.rezepte))normRecipes(res.rezepte);
+  ['mahlzeiten','tage','plan'].forEach(k=>{const v=res[k];if(Array.isArray(v))v.forEach(x=>{if(Array.isArray(x?.mahlzeiten))normRecipes(x.mahlzeiten);else if(x&&x.zutaten)normRecipes([x]);});});
+  if(res.rezept&&typeof res.rezept==='object')normRecipes([res.rezept]);}
+async function _aiCall(task,payload={},msg='KI denkt nach…'){
   const url=(S.workerUrl||'').trim().replace(/\/$/,'');
   if(!url){toast('Bitte zuerst die Worker-URL im Setup eintragen','err');showTab('einstellungen');throw new Error('no worker');}
   loading(true,msg);
@@ -1370,6 +1378,36 @@ function recipePrice(r,f=1){
   const sum=+r.gesamt_preis_eur||( (r.zutaten||[]).reduce((a,z)=>a+(+z.preis_eur||0),0) );
   return sum>0?sum*f:0;
 }
+
+/* Rezept-Makros absichern (28.11.2026): KI lieferte teils nur kcal → Feldnamen normalisieren,
+   sonst aus Zutaten schätzen (Nährwerte pro 100 g). */
+const NUTRI100={hähnchen:[110,23,0,1.5],hühnchen:[110,23,0,1.5],pute:[105,24,0,1],rind:[150,22,0,7],steak:[150,22,0,7],hackfleisch:[240,20,0,18],schwein:[140,21,0,6],lachs:[200,20,0,13],thunfisch:[110,25,0,1],garnele:[90,19,0,1],
+ ei:[140,12,1,10],eier:[140,12,1,10],eiweiß:[50,11,1,0],kartoffel:[75,2,16,0.1],süßkartoffel:[86,1.6,20,0.1],reis:[350,7,78,0.6],nudel:[355,12,71,1.5],pasta:[355,12,71,1.5],haferflocken:[370,13,59,7],brot:[240,8,45,2],toast:[260,8,48,3.5],wrap:[300,8,50,7],tortilla:[300,8,50,7],
+ öl:[884,0,0,100],olivenöl:[884,0,0,100],butter:[740,0.7,0.6,82],kräuterbutter:[700,1,1,76],joghurt:[60,4,5,1.5],magerjoghurt:[50,4.5,5,0.5],skyr:[63,11,4,0.2],quark:[67,12,4,0.3],magerquark:[67,12,4,0.3],milch:[48,3.4,4.8,1.5],käse:[350,25,0,27],mozzarella:[250,18,1,19],feta:[260,17,0,21],frischkäse:[200,7,4,17],
+ gurke:[12,0.6,2,0.1],tomate:[18,0.9,3,0.2],salat:[15,1.2,1.5,0.2],zwiebel:[40,1.2,8,0.1],mais:[86,3.3,16,1.2],bohnen:[90,6,13,0.5],kichererbsen:[120,7,17,2.5],linsen:[115,9,17,0.4],avocado:[160,2,2,15],banane:[90,1.1,20,0.3],apfel:[52,0.3,12,0.2],beeren:[45,1,8,0.4],
+ honig:[300,0.4,75,0],zucker:[400,0,100,0],nüsse:[620,18,10,55],erdnussbutter:[600,25,12,50],sahne:[200,2.5,3.5,20],kokosmilch:[180,2,3,18],sauce:[60,1.5,10,1.5],soße:[60,1.5,10,1.5],dressing:[150,1,6,13]};
+function _num(v){const n=parseFloat(String(v??'').replace(',','.'));return isFinite(n)?n:0;}
+function _grams(z){const m=_num(z.menge),e=String(z.einheit||'g').toLowerCase();
+  if(/^kg/.test(e))return m*1000;if(/^(g|gramm)/.test(e))return m;if(/^ml/.test(e))return m;if(/^l\b|liter/.test(e))return m*1000;
+  if(/el|esslöffel/.test(e))return m*12;if(/tl|teelöffel/.test(e))return m*4;if(/stk|stück|^$/.test(e))return m*(/ei/.test((z.name||'').toLowerCase())?60:100);return m;}
+function recipeMacros(r){
+  const src=r&&(r.makros||r.naehrwerte||r.nährwerte||r.macros||r)||{};
+  const pick=(...k)=>{for(const x of k){const v=_num(src[x]);if(v)return v;}return 0;};
+  let m={kalorien:pick('kalorien','kcal','energie_kcal','calories'),protein_g:pick('protein_g','protein','eiweiss_g','eiweiß_g','eiweiss','eiweiß'),
+         kohlenhydrate_g:pick('kohlenhydrate_g','kohlenhydrate','carbs_g','carbs','kh_g','kh'),fett_g:pick('fett_g','fett','fat_g','fat')};
+  if(m.protein_g||m.kohlenhydrate_g||m.fett_g){if(src._geschaetzt)m._geschaetzt=true;return m;}
+  // Aus Zutaten: zuerst Zutaten-Makros der KI, sonst Tabelle
+  let est={kalorien:0,protein_g:0,kohlenhydrate_g:0,fett_g:0},hit=0;
+  for(const z of (r.zutaten||[])){
+    if(_num(z.protein_g)||_num(z.kalorien)){est.kalorien+=_num(z.kalorien);est.protein_g+=_num(z.protein_g);est.kohlenhydrate_g+=_num(z.kohlenhydrate_g);est.fett_g+=_num(z.fett_g);hit++;continue;}
+    const n=rfNorm(z.name||'');const key=Object.keys(NUTRI100).sort((a,b)=>b.length-a.length).find(k=>n.includes(rfNorm(k)));
+    if(!key)continue;const g=_grams(z)/100,v=NUTRI100[key];est.kalorien+=v[0]*g;est.protein_g+=v[1]*g;est.kohlenhydrate_g+=v[2]*g;est.fett_g+=v[3]*g;hit++;}
+  if(!hit)return m;
+  // kcal der KI behalten, Makros auf deren kcal skalieren (Tabelle ist nur grob)
+  if(m.kalorien&&est.kalorien){const k=m.kalorien/est.kalorien;est.protein_g*=k;est.kohlenhydrate_g*=k;est.fett_g*=k;est.kalorien=m.kalorien;}
+  est._geschaetzt=true;return est;
+}
+function normRecipes(list){(list||[]).forEach(r=>{if(r&&typeof r==='object'){const m=recipeMacros(r);r.makros={...(r.makros||{}),...m};}});return list;}
 function recipeCard(r,idx,saved){
   const port=r._port||r.portionen||1, f=port/(r.portionen||1);
   const preis=recipePrice(r,f);
@@ -1388,7 +1426,7 @@ function recipeCard(r,idx,saved){
       ${(r.tipps||[]).length?`<div style="margin-top:10px;font-size:12.5px"><b style="color:var(--acc)">💡 Profi-Tipps</b>
         ${r.tipps.map(t=>`<p style="margin:5px 0;color:var(--mut)">• ${esc(t)}</p>`).join('')}</div>`:''}</details>
     <p style="font-size:12.5px;color:var(--acc2);margin-top:10px;font-weight:700">
-      ${fmt((r.makros?.kalorien||0)*f)} kcal · P ${fmt((r.makros?.protein_g||0)*f)}g · C ${fmt((r.makros?.kohlenhydrate_g||0)*f)}g · F ${fmt((r.makros?.fett_g||0)*f)}g</p>
+      ${(()=>{const M=recipeMacros(r);return `${fmt(M.kalorien*f)} kcal · P ${fmt(M.protein_g*f)}g · C ${fmt(M.kohlenhydrate_g*f)}g · F ${fmt(M.fett_g*f)}g${M._geschaetzt?' <span class="sub" style="font-weight:400" title="Makros aus den Zutaten geschätzt">(≈)</span>':''}`;})()}</p>
     <div class="row" style="margin-top:10px">
       ${saved?`<button class="btn sm danger" onclick="delRecipe(${idx})">Löschen</button>`
              :`<button class="btn sm ghost" onclick="saveRecipe(${idx})">💾 Speichern</button>`}
@@ -1397,6 +1435,7 @@ function recipeCard(r,idx,saved){
 function scaleRecipe(idx,saved,val){const r=(saved?S.recipes:window._genRecipes||[])[idx];if(r){r._port=Math.max(1,+val||1);if(saved)save();renderRecipes();}}
 function trackRecipe(idx,saved){
   const r=(saved?S.recipes:window._genRecipes||[])[idx];if(!r)return;
+  r.makros={...(r.makros||{}),...recipeMacros(r)};
   const f=(r._port||r.portionen||1)/(r.portionen||1);
   addMeal({items:[{name:r.name,menge_g:0,kalorien:(r.makros?.kalorien||0)*f,protein_g:(r.makros?.protein_g||0)*f,
     kohlenhydrate_g:(r.makros?.kohlenhydrate_g||0)*f,fett_g:(r.makros?.fett_g||0)*f,quelle:'geschaetzt',mikros:{},aminos:{}},],
@@ -1965,7 +2004,7 @@ function loadScript(src){return new Promise((res,rej)=>{
 if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}
 /* Auto-Update (28.11.2026): Die Android-App lädt beim Zurückholen nicht neu → neue Versionen kamen erst nach
    komplettem Schließen an. Jetzt: beim Öffnen/Zurückkehren Version prüfen und bei Bedarf still neu laden. */
-const APP_BUILD='apexfit-v39';
+const APP_BUILD='apexfit-v40';
 async function checkAppUpdate(){
   try{
     if(document.querySelector('#overlay.show'))return;             // nicht mitten in einem Dialog
