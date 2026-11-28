@@ -383,7 +383,13 @@ input,select,textarea{max-width:100%}
   <!-- ═══ REZEPTE ═══ -->
   <section class="tab" id="tab-rezepte">
     <h1>Rezepte</h1>
-    <p class="sub">Personalisiert nach deinen Vorlieben – No-Gos tauchen in keinem Gericht auf.</p>
+    <p class="sub">Personalisiert nach deinen Vorlieben – 🚩 Red Flags tauchen nirgends in der App auf.</p>
+    <div class="card">
+      <label>🔎 Rezept suchen</label>
+      <div class="row" style="flex-wrap:nowrap;gap:8px"><input id="recipeSearch" placeholder="z. B. Thunfischsalat, Chili, Protein-Pancakes…" style="flex:1;min-width:0" onkeydown="if(event.key==='Enter')searchRecipes()">
+        <button class="btn" onclick="searchRecipes()" style="white-space:nowrap">Suchen</button></div>
+      <p class="sub" style="margin:6px 0 0;font-size:12px">Du bekommst 3 Varianten, passend zu deinen Makros und ohne deine Red Flags.</p>
+    </div>
     <div class="card">
       <div class="grid g2">
         <div>
@@ -398,7 +404,7 @@ input,select,textarea{max-width:100%}
           </select>
         </div>
         <div>
-          <label>No-Go hinzufügen (z. B. Spinat)</label>
+          <label>🚩 Red Flag hinzufügen (z. B. Brokkoli)</label>
           <div class="row"><input id="nogoInput" placeholder="Zutat…" style="flex:1" onkeydown="if(event.key==='Enter')addNogo()">
           <button class="btn sm ghost" onclick="addNogo()">+</button></div>
         </div>
@@ -485,6 +491,13 @@ input,select,textarea{max-width:100%}
   <section class="tab" id="tab-einstellungen">
     <h1>Setup</h1>
     <p class="sub">Profil, Ziele &amp; KI-Verbindung.</p>
+    <div class="card" id="rfCard">
+      <h2 style="margin-top:0">🚩 Red Flags – das esse ich nicht</h2>
+      <p class="sub" style="margin-top:0">Was hier steht, kommt in der ganzen App nicht mehr vor: Rezepte, Tages- &amp; Wochenplan, Coach, Snack-Ideen, Clever tauschen, Speisekarte und Tipps.</p>
+      <div class="row" style="flex-wrap:nowrap;gap:8px"><input id="rfInput" placeholder="z. B. Brokkoli, Pilze, Thunfisch…" style="flex:1;min-width:0" onkeydown="if(event.key==='Enter')addNogo(this.value)">
+        <button class="btn" onclick="addNogo($('#rfInput').value)">Hinzufügen</button></div>
+      <div class="row" id="rfChips" style="margin-top:12px"></div>
+    </div>
     <div class="grid g2">
       <div class="card">
         <h2 style="margin-top:0">👤 Profil</h2>
@@ -815,7 +828,18 @@ async function fitAuthHeaders(){
   try{ const u=window.firebase&&firebase.auth().currentUser; if(u) h.Authorization='Bearer '+await u.getIdToken(); }catch(e){}
   return h;
 }
+// 🚩 Red Flags in JEDE KI-Anfrage (Rezepte, Pläne, Coach, Chat, Snacks, Speisekarte, Tipps, Insights …)
+const RF_TASKS_SKIP={food_text:1,food_audio:1,kfa_estimate:1,goal_image:1,price_lookup:1};
+function withRedFlags(task,payload){
+  const rf=redFlags();if(!rf.length||RF_TASKS_SKIP[task])return payload;
+  const regel='STRENGE REGEL: Der Nutzer isst folgende Lebensmittel NIEMALS (Red Flags): '+rf.join(', ')+'. Schlage sie nirgends vor – nicht als Zutat, Beilage, Snack, Topping, Tausch-Idee oder Tipp – auch keine Varianten/Synonyme davon. Bei Speisekarten diese Gerichte meiden.';
+  const p={...payload};
+  p.context={...(p.context&&typeof p.context==='object'?p.context:{}),red_flags_niemals:rf,no_gos:[...new Set([...(p.context?.no_gos||[]),...rf])],regel_red_flags:regel};
+  if(typeof p.text==='string'&&p.text)p.text=p.text+'\n\n('+regel+')';
+  return p;
+}
 async function aiCall(task,payload={},msg='KI denkt nach…'){
+  payload=withRedFlags(task,payload);
   const url=(S.workerUrl||'').trim().replace(/\/$/,'');
   if(!url){toast('Bitte zuerst die Worker-URL im Setup eintragen','err');showTab('einstellungen');throw new Error('no worker');}
   loading(true,msg);
@@ -1044,11 +1068,46 @@ function renderNutrition(){
 }
 
 /* ═══════════ REZEPTE & TAGESPLAN ═══════════ */
-function addNogo(){const v=$('#nogoInput').value.trim();if(!v)return;
-  if(!S.prefs.nogos.includes(v))S.prefs.nogos.push(v);$('#nogoInput').value='';save();renderNogos();}
+/* 🚩 Red Flags (28.11.2026): Lebensmittel, die NIRGENDS in der App vorkommen dürfen – Rezepte, Pläne, Coach, Snacks, Tipps.
+   Gespeichert in S.prefs.nogos (synchronisiert über die Cloud). */
+const RF_SYN={brokkoli:['broccoli','brocoli'],broccoli:['brokkoli'],zucchini:['zucchetti'],aubergine:['melanzani'],
+  paprika:['peperoni'],tomate:['tomaten','paradeis'],pilze:['champignon','champignons','pilz'],champignons:['pilze','pilz'],
+  koriander:['cilantro'],rosenkohl:['kohlsprossen'],thunfisch:['tuna'],garnelen:['shrimps','krabben','scampi'],
+  erdnuss:['erdnüsse','erdnussbutter','peanut'],nuss:['nüsse','nuts'],zwiebel:['zwiebeln','schalotte'],knoblauch:['garlic'],
+  oliven:['olive'],spinat:['blattspinat'],rote_bete:['rote beete','randen'],lachs:['salmon'],ei:['eier','egg']};
+function rfNorm(x){return String(x||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ß/g,'ss').trim();}
+function rfTerms(n){const b=rfNorm(n);const t=new Set([b]);(RF_SYN[b.replace(/ /g,'_')]||[]).forEach(x=>t.add(rfNorm(x)));
+  if(b.length>4&&/(n|en|e|s)$/.test(b))t.add(b.replace(/(en|n|e|s)$/,''));return [...t].filter(x=>x.length>=3||x===b);}
+function redFlags(){return (S.prefs&&S.prefs.nogos)||[];}
+function rfHit(text){const s=rfNorm(text);return redFlags().filter(n=>rfTerms(n).some(t=>t&&s.includes(t)));}
+function addNogo(v){v=(v??$('#nogoInput')?.value??'').trim();if(!v)return;
+  if(!redFlags().some(n=>rfNorm(n)===rfNorm(v)))S.prefs.nogos.push(v);
+  ['#nogoInput','#rfInput'].forEach(x=>{const e=$(x);if(e)e.value='';});
+  // gespeicherte Rezepte / heutigen Plan mit dieser Zutat markieren
+  save();renderNogos();toast('🚩 '+v+' kommt in der App nicht mehr vor');}
 function delNogo(i){S.prefs.nogos.splice(i,1);save();renderNogos();}
-function renderNogos(){$('#nogoChips').innerHTML=S.prefs.nogos.map((n,i)=>
-  `<span class="chip">🚫 ${esc(n)}<button onclick="delNogo(${i})">✕</button></span>`).join('')||'<span class="sub">Keine No-Gos definiert.</span>';}
+function renderNogos(){
+  const html=redFlags().map((n,i)=>`<span class="chip">🚩 ${esc(n)}<button onclick="delNogo(${i})" aria-label="${esc(n)} entfernen">✕</button></span>`).join('')||'<span class="sub">Noch keine Red Flags.</span>';
+  ['#nogoChips','#rfChips'].forEach(x=>{const e=$(x);if(e)e.innerHTML=html;});}
+// Rezeptsuche: „Thunfischsalat“ → 3 Varianten, ohne Red Flags
+async function searchRecipes(){
+  const q=($('#recipeSearch')?.value||'').trim();if(!q)return toast('Was möchtest du kochen?','err');
+  const hit=rfHit(q);
+  const ctx=prefsContext();
+  ctx.suche=q;
+  ctx.hinweis=`Der Nutzer SUCHT nach: „${q}“. Erzeuge 3 unterschiedliche Rezepte, die genau dazu passen (klassische Variante, eine leichtere/proteinreiche Variante und eine schnelle Variante). Passe Portionen an die Ziel-Makros an.`+
+    (hit.length?` Achtung: Die Suche enthält die Red Flag(s) ${hit.join(', ')} – ersetze sie durch eine passende Alternative und erwähne das kurz in der Beschreibung.`:'');
+  let res=await aiCall('recipes',{context:ctx},`Rezepte für „${q}“…`);
+  let rec=res.rezepte||[];
+  const bad=[...new Set(rec.flatMap(nogoHits))];
+  if(bad.length){ctx.hinweis+=' Dein letzter Versuch enthielt verbotene Zutaten: '+bad.join(', ')+'. Diese garantiert NICHT verwenden.';
+    res=await aiCall('recipes',{context:ctx},'Red Flags entfernt – neuer Versuch…');rec=res.rezepte||[];}
+  rec=rec.filter(r=>!nogoHits(r).length);
+  window._genRecipes=rec;rememberNames(rec.map(r=>r.name));
+  renderRecipes();const t=$('#recipeBoxTitle');if(t)t.textContent='🔎 Rezepte für „'+q+'“';
+  toast(rec.length?rec.length+' Rezepte für „'+q+'“ ✓':'Keine passenden Rezepte ohne deine Red Flags gefunden','');
+  t?.scrollIntoView({behavior:'smooth',block:'start'});
+}
 // Ess-Verhalten: was der Nutzer in den letzten 14 Tagen tatsächlich getrackt hat (für personalisierte Rezepte & Coach)
 function eatingBehavior(){
   const count={};let tage=0;
@@ -1067,8 +1126,8 @@ function prefsContext(){S.prefs.vorliebe=$('#prefVorliebe')?.value||S.prefs.vorl
     nicht_wiederholen:(S.recentRecipeNames||[]).slice(-30),zufall:uid()+Date.now()};}
 // prüft Rezeptname + alle Zutaten gegen die No-Go-Liste (Teilstring, case-insensitive)
 function nogoHits(r){
-  const strs=[(r?.name||''),...(r?.zutaten||[]).map(z=>z?.name||'')].map(s=>s.toLowerCase());
-  return (S.prefs.nogos||[]).filter(n=>{const g=n.toLowerCase().trim();return g&&strs.some(s=>s.includes(g));});
+  const txt=[(r?.name||''),(r?.beschreibung||''),...(r?.zutaten||[]).map(z=>(z?.name||'')+' '+(z?.marke||'')),...(r?.zubereitung||[])].join(' | ');
+  return rfHit(txt);
 }
 function rememberNames(names){
   S.recentRecipeNames=[...(S.recentRecipeNames||[]),...names.filter(Boolean)].slice(-40);save();
@@ -1587,7 +1646,7 @@ function renderDash(){
 }
 
 /* ═══════════ SETTINGS ═══════════ */
-function renderSettings(){
+function renderSettings(){try{renderNogos();}catch(e){}
   $('#setName').value=S.profile.name;$('#setGewicht').value=S.profile.gewicht;$('#setGroesse').value=S.profile.groesse;
   $('#setKfa').value=S.profile.kfa;$('#setZiel').value=S.profile.ziel;
   $('#setAlter').value=S.profile.alter;$('#setGeschlecht').value=S.profile.geschlecht||'m';
@@ -2691,7 +2750,7 @@ const SNACKS=[
  ['satt','🥔','Pellkartoffel (250 g) mit Kräuterquark',280,16,45,2],['satt','🍝','Zoodles mit Tomatensoße + 50 g Nudeln',260,10,48,3]];
 const CRAVE={suess:'🍬 Süß',salzig:'🧂 Salzig',knusprig:'🥨 Knusprig',satt:'🍽️ Richtig satt'};
 function snackPicker(type){
-  const r=cpRest(),list=SNACKS.filter(s=>!type||s[0]===type).filter(s=>s[3]<=Math.max(120,r.kcal+40));
+  const r=cpRest(),list=SNACKS.filter(s=>!rfHit(s[2]).length).filter(s=>!type||s[0]===type).filter(s=>s[3]<=Math.max(120,r.kcal+40));
   modal(`<div class="mhead"><h3>😋 Ich hab Bock auf …</h3><button class="x" onclick="closeModal()">✕</button></div>
     <div class="row" style="gap:6px">${Object.entries(CRAVE).map(([k,v])=>`<button class="btn sm ${k===type?'':'ghost'}" onclick="snackPicker('${k}')">${v}</button>`).join('')}</div>
     <p class="sub" style="margin:10px 0">Noch ${fmt(r.kcal)} kcal frei · alles mit Zutaten, die man meist daheim hat. Antippen = eintragen.</p>
@@ -2707,7 +2766,7 @@ const SWAPS=[['Chips (100 g)',540,'🍿 Popcorn selbst gemacht (60 g)',240,'knus
  ['Müsliriegel',200,'🥣 Overnight Oats (40 g Hafer, Skyr, Beeren)',280,'hält 4 h satt statt 1 h'],['Bier (0,5 l)',210,'🍺 Alkoholfreies Bier',100,'halbe kcal, kein Fettstopp'],
  ['Nutella-Brot',350,'🍞 Vollkornbrot mit Frischkäse light & Gurke',180,'satt ohne Zuckerpeak']];
 function swapPicker(q){
-  q=(q||'').toLowerCase();const list=SWAPS.filter(s=>!q||s[0].toLowerCase().includes(q));
+  q=(q||'').toLowerCase();const list=SWAPS.filter(s=>!rfHit(s[2]).length).filter(s=>!q||s[0].toLowerCase().includes(q));
   modal(`<div class="mhead"><h3>🔄 Clever tauschen</h3><button class="x" onclick="closeModal()">✕</button></div>
     <input id="swapQ" placeholder="Worauf hast du Lust? z. B. Pizza, Chips…" value="${esc(q)}" oninput="clearTimeout(window._swT);window._swT=setTimeout(()=>swapPicker(this.value),300)">
     ${list.map(s=>`<div class="item"><div class="t"><b>${esc(s[0])} <span style="color:var(--err)">${s[1]} kcal</span></b><span>→ ${esc(s[2])} <b style="color:var(--acc2)">${s[3]} kcal</b> · ${esc(s[4])}</span></div></div>`).join('')||`<p class="sub">Nichts gefunden – frag den KI-Coach: „Was ist eine leichte Alternative zu ${esc(q)}?“</p>`}`);
@@ -2722,7 +2781,7 @@ function menuScan(){const i=document.createElement('input');i.type='file';i.acce
 // 5) Heißhunger-SOS
 function sosOpen(){
   S.cravings=[...(S.cravings||[]),Date.now()].slice(-60);save();
-  const r=cpRest(),pick=SNACKS.filter(s=>s[3]<=Math.max(120,r.kcal)).sort((a,b)=>b[4]/b[3]-a[4]/a[3])[0];
+  const r=cpRest(),pick=SNACKS.filter(s=>!rfHit(s[2]).length).filter(s=>s[3]<=Math.max(120,r.kcal)).sort((a,b)=>b[4]/b[3]-a[4]/a[3])[0];
   modal(`<div class="mhead"><h3>🆘 Heißhunger? Wir schaffen das.</h3><button class="x" onclick="closeModal()">✕</button></div>
     <ol style="padding-left:18px;line-height:1.7;font-size:14.5px"><li><b>Großes Glas Wasser</b> trinken (oft ist es Durst).</li>
     <li><b>10 Minuten warten</b> – Heißhunger ist eine Welle, sie geht vorbei.</li><li>Kurz raus, Zähne putzen oder 20 Kniebeugen.</li>
@@ -2910,6 +2969,7 @@ renderWeekPlan();renderCharts();renderWater();updatePushStatus();updateFitbitSta
 const dstr=i=>daysAgo(i);
 // KI-Call ohne Fullscreen-Loader (für proaktive Hintergrund-Aufgaben)
 async function aiSilent(task,payload={}){
+  if(typeof withRedFlags==='function')payload=withRedFlags(task,payload);
   const url=(S.workerUrl||'').trim().replace(/\/$/,'');if(!url)throw new Error('no worker');
   const r=await fetch(url+'/api/ai',{method:'POST',headers:await fitAuthHeaders(),body:JSON.stringify({task,...payload})});
   if(r.status===402)throw new Error('subscription_required');   // Hintergrund-KI: still bleiben, kein Fenster
