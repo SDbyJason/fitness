@@ -490,7 +490,7 @@ input,select,textarea{max-width:100%}
   <!-- ═══ EINSTELLUNGEN ═══ -->
   <section class="tab" id="tab-einstellungen">
     <h1>Setup</h1>
-    <p class="sub">Profil, Ziele &amp; KI-Verbindung. <span style="opacity:.6;font-size:11px">· Version v32</span></p>
+    <p class="sub">Profil, Ziele &amp; KI-Verbindung. <span style="opacity:.6;font-size:11px">· Version v33</span></p>
     <div class="card" id="rfCard">
       <h2 style="margin-top:0">🚩 Red Flags – das esse ich nicht</h2>
       <p class="sub" style="margin-top:0">Was hier steht, kommt in der ganzen App nicht mehr vor: Rezepte, Tages- &amp; Wochenplan, Coach, Snack-Ideen, Clever tauschen, Speisekarte und Tipps.</p>
@@ -874,21 +874,28 @@ async function aiCall(task,payload={},msg='KI denkt nach…'){
     try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing},width:{ideal:1920},height:{ideal:1440}},audio:false});}
     catch(e){inp.setAttribute('capture',facing);inp.dataset.direct='1';try{nativeClick.call(inp);}finally{delete inp.dataset.direct;}return;}
     window._camStream=stream;window._camInp=inp;window._camFacing=facing;
-    modal(`<div class="mhead"><h3>📷 Foto aufnehmen</h3><button class="x" onclick="camStop();closeModal()">✕</button></div>
-      <video id="camV" autoplay playsinline muted style="width:100%;max-height:62vh;border-radius:14px;background:#000;object-fit:cover"></video>
-      <div class="row" style="justify-content:center;gap:12px;margin-top:12px">
-        <button class="btn ghost" onclick="camFlip()" aria-label="Kamera wechseln">🔄</button>
-        <button class="btn" style="min-width:150px;justify-content:center;font-size:16px" onclick="camShot()">● Auslösen</button>
-      </div>`);
-    const v=$('#camV');v.srcObject=stream;
-    const ov=$('#overlay');const obs=new MutationObserver(()=>{if(!ov.classList.contains('show')){camStop();obs.disconnect();}});obs.observe(ov,{attributes:true});
+    // Vollbild-Kamera (28.11.2026) statt kleinem Dialog
+    let w=document.getElementById('camFull');
+    if(!w){w=document.createElement('div');w.id='camFull';document.body.appendChild(w);}
+    w.style.cssText='position:fixed;inset:0;z-index:99999;background:#000;display:flex;flex-direction:column';
+    w.innerHTML=`<video id="camV" autoplay playsinline muted style="flex:1;width:100%;height:100%;object-fit:cover;min-height:0"></video>
+      <button onclick="camClose()" aria-label="Schließen" style="position:absolute;top:calc(env(safe-area-inset-top,0px) + 16px);right:16px;width:44px;height:44px;border-radius:50%;border:0;background:rgba(0,0,0,.45);color:#fff;font-size:22px">✕</button>
+      <div style="position:absolute;left:0;right:0;bottom:0;padding:22px 0 calc(env(safe-area-inset-bottom,0px) + 28px);display:flex;align-items:center;justify-content:center;gap:48px;background:linear-gradient(transparent,rgba(0,0,0,.55))">
+        <span style="width:52px"></span>
+        <button onclick="camShot()" aria-label="Auslösen" style="width:78px;height:78px;border-radius:50%;border:5px solid #fff;background:rgba(255,255,255,.25);padding:0"><span style="display:block;width:60px;height:60px;margin:auto;border-radius:50%;background:#fff"></span></button>
+        <button onclick="camFlip()" aria-label="Kamera wechseln" style="width:52px;height:52px;border-radius:50%;border:0;background:rgba(255,255,255,.2);color:#fff;font-size:24px">🔄</button>
+      </div>`;
+    const v=document.getElementById('camV');v.srcObject=stream;
+    history.pushState({cam:1},'');window._camBack=()=>camClose(true);addEventListener('popstate',window._camBack,{once:true});
   };
+  window.camClose=function(fromBack){camStop();document.getElementById('camFull')?.remove();
+    if(!fromBack&&history.state&&history.state.cam){removeEventListener('popstate',window._camBack);history.back();}};
   window.camStop=function(){try{(window._camStream?.getTracks()||[]).forEach(t=>t.stop());}catch(e){}window._camStream=null;};
-  window.camFlip=function(){const inp=window._camInp,f=window._camFacing==='user'?'environment':'user';camStop();liveCam(inp,f);};
+  window.camFlip=function(){const inp=window._camInp,f=window._camFacing==='user'?'environment':'user';camStop();removeEventListener('popstate',window._camBack);if(history.state&&history.state.cam)history.replaceState(null,'');liveCam(inp,f);};
   window.camShot=function(){
     const v=$('#camV'),inp=window._camInp;if(!v||!v.videoWidth||!inp)return;
     const c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);
-    c.toBlob(b=>{camStop();closeModal();
+    c.toBlob(b=>{camClose();
       const f=new File([b],'foto-'+Date.now()+'.jpg',{type:'image/jpeg'});
       const dt=new DataTransfer();dt.items.add(f);inp.files=dt.files;
       inp.dispatchEvent(new Event('change',{bubbles:true}));
@@ -1767,7 +1774,7 @@ function loadScript(src){return new Promise((res,rej)=>{
 if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}
 /* Auto-Update (28.11.2026): Die Android-App lädt beim Zurückholen nicht neu → neue Versionen kamen erst nach
    komplettem Schließen an. Jetzt: beim Öffnen/Zurückkehren Version prüfen und bei Bedarf still neu laden. */
-const APP_BUILD='apexfit-v32';
+const APP_BUILD='apexfit-v33';
 async function checkAppUpdate(){
   try{
     if(document.querySelector('#overlay.show'))return;             // nicht mitten in einem Dialog
