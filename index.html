@@ -581,7 +581,7 @@ details.ck-fold[open]>summary{margin-bottom:14px}
   <!-- ═══ EINSTELLUNGEN ═══ -->
   <section class="tab" id="tab-einstellungen">
     <h1>Ich</h1>
-    <p class="sub">Profil, Ziele, Verbindungen &amp; Einstellungen. <span style="opacity:.6;font-size:11px">· Version v37</span></p>
+    <p class="sub">Profil, Ziele, Verbindungen &amp; Einstellungen. <span style="opacity:.6;font-size:11px">· Version v38</span></p>
     <div class="card" id="rfCard">
       <h2 style="margin-top:0">🚩 Red Flags – das esse ich nicht</h2>
       <p class="sub" style="margin-top:0">Was hier steht, kommt in der ganzen App nicht mehr vor: Rezepte, Tages- &amp; Wochenplan, Coach, Snack-Ideen, Clever tauschen, Speisekarte und Tipps.</p>
@@ -1879,7 +1879,7 @@ function renderDash(){
   $('#dashStats').innerHTML=`<h2 style="margin-top:0">⚡ Woche im Blick</h2>
     <div class="item"><div class="t"><b>🏋️ Workouts (7 Tage)</b></div><b>${week.length}</b></div>
     <div class="item"><div class="t"><b>🏗️ Tonnage (7 Tage)</b></div><b>${fmt(week.reduce((a,l)=>a+l.tonnage,0))} kg</b></div>
-    <div class="item"><div class="t"><b>🔥 Tracking-Streak</b></div><b>${streak} Tage</b></div>
+    <div class="item"><div class="t"><b>🔥 Tracking-Streak</b></div><b>${streak} ${streak===1?"Tag":"Tage"}</b></div>
     <div class="item"><div class="t"><b>💊 Supplements heute</b></div><b>${supD}/${S.supplements.length}</b></div>
     <div class="item"><div class="t"><b>❤️ Ruhepuls / Schlaf</b></div><b>${b.rhr||'–'} bpm · ${b.schlaf||'–'} h</b></div>`;
   if(S.coach){$('#coachBox').style.display='block';
@@ -1963,7 +1963,7 @@ function loadScript(src){return new Promise((res,rej)=>{
 if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}
 /* Auto-Update (28.11.2026): Die Android-App lädt beim Zurückholen nicht neu → neue Versionen kamen erst nach
    komplettem Schließen an. Jetzt: beim Öffnen/Zurückkehren Version prüfen und bei Bedarf still neu laden. */
-const APP_BUILD='apexfit-v37';
+const APP_BUILD='apexfit-v38';
 async function checkAppUpdate(){
   try{
     if(document.querySelector('#overlay.show'))return;             // nicht mitten in einem Dialog
