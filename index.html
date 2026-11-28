@@ -1765,6 +1765,24 @@ function loadScript(src){return new Promise((res,rej)=>{
 
 /* ─── PWA: Service Worker ─── */
 if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}
+/* Auto-Update (28.11.2026): Die Android-App lädt beim Zurückholen nicht neu → neue Versionen kamen erst nach
+   komplettem Schließen an. Jetzt: beim Öffnen/Zurückkehren Version prüfen und bei Bedarf still neu laden. */
+const APP_BUILD='apexfit-v31';
+async function checkAppUpdate(){
+  try{
+    if(document.querySelector('#overlay.show'))return;             // nicht mitten in einem Dialog
+    if(Date.now()-(window._lastUpd||0)<60e3)return;window._lastUpd=Date.now();
+    const t=await (await fetch('sw.js?u='+Date.now(),{cache:'no-store'})).text();
+    const v=(t.match(/apexfit-v\d+/)||[])[0];
+    if(v&&v!==APP_BUILD){
+      try{flushSync&&flushSync();}catch(e){}
+      const r=await navigator.serviceWorker?.getRegistration();try{await r?.update();}catch(e){}
+      setTimeout(()=>location.reload(),400);
+    }
+  }catch(e){}
+}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkAppUpdate();});
+setTimeout(checkAppUpdate,4000);
 
 /* ─── WEB PUSH ─── */
 const b64uToBytes=s=>Uint8Array.from(atob((s+'==='.slice((s.length+3)%4)).replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0));
