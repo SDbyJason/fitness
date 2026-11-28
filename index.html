@@ -245,6 +245,25 @@ td{padding:8px 6px;border-top:1px solid var(--line)}
   .spin{border-color:rgba(212,175,55,.2);border-top-color:var(--acc)}
   ::-webkit-scrollbar-thumb{background:rgba(212,175,55,.4)}
 }
+
+/* ═══ Optik & Performance-Fixes 28.11.2026 ═══ */
+@keyframes tabIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.tab.active{animation-duration:.35s}
+.tab.active .card{animation-duration:.45s}
+@media (max-width:760px){
+  .blob{animation:none;filter:blur(70px);opacity:.16}
+  nav{backdrop-filter:none;-webkit-backdrop-filter:none}
+  .card{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+  .tab.active .card{animation:none}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+.ck-sc{display:grid!important;grid-template-columns:repeat(5,1fr);gap:8px!important;flex:1 1 100%;width:100%}
+.ck-b{width:100%!important;min-height:44px}
+#bioHrv{min-width:0}
+@media (max-width:520px){ .btn[onclick="saveBio()"]{width:100%;margin-top:12px!important;justify-content:center} }
+.card,.sub,p,td,li{overflow-wrap:anywhere}
+input,select,textarea{max-width:100%}
+@media (max-width:520px){ .modal .row .btn{flex:1 1 100%;justify-content:center} }
 </style>
 </head>
 <body>
@@ -700,10 +719,26 @@ function fit(r){
 window.__refit3d=()=>scenes.forEach(r=>{r.w=0;fit(r);});
 addEventListener('resize',()=>window.__refit3d());
 let t=0;
-(function anim(){
-  requestAnimationFrame(anim);t+=.008;
-  for(const r of scenes){fit(r);if(r.w){r.update(t);r.ren.render(r.scene,r.cam);}}
-})();
+/* Performance (28.11.2026): nur rendern, wenn sichtbar; Größe nur bei Resize messen statt jeden Frame. */
+const _vis=new WeakMap();
+const _io='IntersectionObserver' in window?new IntersectionObserver(es=>es.forEach(e=>_vis.set(e.target,e.isIntersecting)),{rootMargin:'80px'}):null;
+let _needFit=true;addEventListener('resize',()=>{_needFit=true;});
+const _lowPower=matchMedia('(max-width:760px)').matches||matchMedia('(prefers-reduced-motion: reduce)').matches;
+let _last=0;
+(function anim(now){
+  requestAnimationFrame(anim);
+  if(document.hidden)return;
+  if(_lowPower&&now-_last<33)return; _last=now;
+  t+=_lowPower?.016:.008;
+  for(const r of scenes){
+    if(_io&&!r._obs){_io.observe(r.box);r._obs=1;_vis.set(r.box,true);}
+    if(_io&&_vis.get(r.box)===false)continue;
+    if(!r.box.offsetParent)continue;
+    if(_needFit||!r.w)fit(r);
+    if(r.w){r.update(t);r.ren.render(r.scene,r.cam);}
+  }
+  _needFit=false;
+})(0);
 </script>
 
 <script>
@@ -1989,7 +2024,7 @@ async function gateAuth(method){
   for(let attempt=1;attempt<=2;attempt++){
     try{
       await firebase.auth()[method](em,pw);
-      if(method.startsWith('create')){ S.consentHealthAt=Date.now(); save(); }   // Nachweis der Einwilligung, synct mit dem Konto
+      if(method.startsWith('create')){ S.consentHealthAt=Date.now(); try{localStorage.setItem('apexfit_consent',String(S.consentHealthAt));}catch(e){} save(); }   // Nachweis der Einwilligung, synct mit dem Konto
       toast(method.startsWith('create')?'Account erstellt ✓':'Eingeloggt ✓');return;
     }catch(e){
       const code=e.code||'';
@@ -2053,6 +2088,8 @@ function mergeStates(a,b){
   R.pushEnabled=!!(a.pushEnabled||b.pushEnabled);
   R.onboarded=!!(a.onboarded||b.onboarded);
   R.fitbitUid=newer.fitbitUid||older.fitbitUid;
+  R.consentHealthAt=Math.max(a.consentHealthAt||0,b.consentHealthAt||0)||null; // Einwilligung nie beim Sync verlieren
+  R.evCardHiddenAt=Math.max(a.evCardHiddenAt||0,b.evCardHiddenAt||0)||null;
   R.hcLinked=!!(a.hcLinked||b.hcLinked);R.hcSyncedAt=Math.max(a.hcSyncedAt||0,b.hcSyncedAt||0)||null;
   R._hcCloudAt=Math.max(a._hcCloudAt||0,b._hcCloudAt||0)||0;
   R.coachPlan=byTs('coachPlan',null);
@@ -4009,8 +4046,11 @@ if(window.renderLangSelect)renderLangSelect();
     var el = document.getElementById('faSync'); if (el) el.innerHTML = line;
     var card = document.getElementById('evCard'); if (!card) return;
     if (!st.loaded) { card.style.display = 'none'; return; }
+    if (S.evCardHiddenAt) { card.style.display = 'none'; return; }
     card.style.display = '';
-    card.innerHTML = st.linked
+    var x = '<button onclick="FitAccess.hideEvCard()" aria-label="Ausblenden" title="Ausblenden – wieder einblenden in den Einstellungen" style="position:absolute;top:10px;right:10px;width:32px;height:32px;border-radius:50%;border:0;background:rgba(127,127,127,.12);color:inherit;font-size:16px;cursor:pointer;line-height:1;z-index:2">✕</button>';
+    card.style.position = 'relative';
+    card.innerHTML = x + (st.linked
       ? '<h2 style="margin-top:0">📈 Trading heute</h2>' + lightHtml() +
         '<p class="sub" style="margin:12px 0 10px">Verbunden mit ' + EV + ' Trading: Schlaf, Check-in, Ernährung und Training landen neben deinen Trades. ' + EV + ' testet dort, ob z. B. wenig Schlaf, Alkohol am Vortag oder Stress dein Trading messbar verschlechtert (Edge & Leaks).</p>' +
         '<div class="sub" style="margin:0 0 10px" id="faSyncDash">' + line + '</div>' +
@@ -4018,16 +4058,21 @@ if(window.renderLangSelect)renderLangSelect();
         '<a class="btn ghost sm" href="https://evidencetrading.com/app.html" target="_blank" rel="noopener">' + EV + ' öffnen ↗</a></div>'
       : '<h2 style="margin-top:0">📈 Tradest du?</h2>' +
         '<p class="sub" style="margin:4px 0 10px">Verbinde ' + BRAND + ' mit ' + EV + ' Trading: Dein Journal zeigt dann, an welchen Tagen Schlaf, Stress oder Alkohol dich Geld kosten. Mit ' + EV + ' Pro sind alle KI-Funktionen hier inklusive.</p>' +
-        '<button class="btn sm" onclick="showTab(\'einstellungen\');setTimeout(function(){var c=document.getElementById(\'faCard\');if(c)c.scrollIntoView({behavior:\'smooth\',block:\'start\'});},80)">Verbinden</button>';
+        '<button class="btn sm" onclick="showTab(\'einstellungen\');setTimeout(function(){var c=document.getElementById(\'faCard\');if(c)c.scrollIntoView({behavior:\'smooth\',block:\'start\'});},80)">Verbinden</button>');
   };
+  A.hideEvCard = function(){ S.evCardHiddenAt = Date.now(); save(); A.status(); A.render && A.render(); toast('Ausgeblendet – in den Einstellungen unter „Abo & Evidence“ wieder einblendbar'); };
+  A.showEvCard = function(){ S.evCardHiddenAt = null; save(); A.status(); A.render && A.render(); toast('Evidence-Karte wieder auf der Startseite ✓'); };
 
   /* Einwilligung für Bestandsnutzer (registriert vor dem 24.10.2026). */
+  A.consentGiven = function(){ var t=Date.now(); S.consentHealthAt=t; try{localStorage.setItem('apexfit_consent',String(t));}catch(e){} save(); };
   A.askConsent = function(){
-    if (S.consentHealthAt) return;
+    var bk=0; try{bk=+localStorage.getItem('apexfit_consent')||0;}catch(e){}
+    if (!S.consentHealthAt && bk) { S.consentHealthAt=bk; save(); }
+    if (S.consentHealthAt) { try{localStorage.setItem('apexfit_consent',String(S.consentHealthAt));}catch(e){} return; }
     modal('<div class="mhead"><h3>Kurze Bestätigung</h3></div>'+
       '<p class="sub">'+BRAND+' speichert Gesundheitsdaten wie Schlaf, Ruhepuls, Gewicht und Ernährung. Dafür brauchen wir deine ausdrückliche Einwilligung (Art. 9 Abs. 2 lit. a DSGVO). Du kannst sie jederzeit widerrufen, indem du dein Konto löschst.</p>'+
       '<div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap">'+
-        '<button class="btn" onclick="S.consentHealthAt=Date.now();save();closeModal();toast(\'Danke ✓\')">Ich willige ein</button>'+
+        '<button class="btn" onclick="FitAccess.consentGiven();closeModal();toast(\'Danke ✓\')">Ich willige ein</button>'+
         '<button class="btn ghost" onclick="closeModal();showTab(\'einstellungen\');FitAccess.deleteAccount()">Nicht einwilligen – Konto löschen</button>'+
       '</div>');
   };
@@ -4113,6 +4158,9 @@ if(window.renderLangSelect)renderLangSelect();
       '</div>'+
       (st.plan === 'free' ? '<p class="sub">Tracken bleibt kostenlos. Das Abo schaltet alle KI-Funktionen frei. Mit '+EV+' Pro ist es inklusive.</p>' : '')+
       (st.err ? '<p class="sub" style="color:var(--err)">'+esc(st.err)+'</p>' : '')+
+      '<div class="row" style="justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0"><span class="sub" style="margin:0">'+EV+'-Karte auf der Startseite: <b>'+(S.evCardHiddenAt?'ausgeblendet':'sichtbar')+'</b></span>'+
+        (S.evCardHiddenAt?'<button class="btn sm ghost" onclick="FitAccess.showEvCard()">Wieder einblenden</button>':'<button class="btn sm ghost" onclick="FitAccess.hideEvCard()">Ausblenden</button>')+'</div>'+
+      '<p class="sub" style="margin:0 0 10px">🔒 Einwilligung Gesundheitsdaten: '+(S.consentHealthAt?'erteilt am '+new Date(S.consentHealthAt).toLocaleDateString('de-DE'):'noch nicht erteilt')+' · Widerruf durch Konto löschen</p>'+
       '<div class="fa-sep"></div>'+
       (st.linked
         ? '<b>Mit '+EV+' Trading verbunden</b>'+
