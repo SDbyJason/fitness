@@ -319,6 +319,18 @@ details.ck-fold[open]>summary small::after{transform:rotate(180deg)}
 details.ck-fold[open]>summary{margin-bottom:14px}
 .bio-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .bio-grid label{margin-top:0}
+
+/* ═══ Ich / Setup gruppiert ═══ */
+.set-grp{margin-top:22px}
+.set-grp-h{font-size:12.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin:0 6px 8px}
+.set-grp .card{margin:0 0 10px!important}
+.card.acc>h2{cursor:pointer;margin:0!important;display:flex;align-items:center;justify-content:flex-start!important;gap:6px;font-size:17px;user-select:none;flex-wrap:nowrap}
+.card.acc>h2::after{content:'▾';font-size:15px;color:var(--mut);transition:transform .2s;flex:0 0 auto;margin-left:auto;padding-left:10px}
+.card.acc.open>h2::after{transform:rotate(180deg)}
+.card.acc.open>h2{margin-bottom:14px!important}
+.card.acc:not(.open)>:not(h2){display:none!important}
+.card.acc:not(.open){padding-top:16px;padding-bottom:16px}
+.set-data .row{margin-top:0!important}
 </style>
 </head>
 <body>
@@ -547,8 +559,8 @@ details.ck-fold[open]>summary{margin-bottom:14px}
 
   <!-- ═══ EINSTELLUNGEN ═══ -->
   <section class="tab" id="tab-einstellungen">
-    <h1>Setup</h1>
-    <p class="sub">Profil, Ziele &amp; KI-Verbindung. <span style="opacity:.6;font-size:11px">· Version v35</span></p>
+    <h1>Ich</h1>
+    <p class="sub">Profil, Ziele, Verbindungen &amp; Einstellungen. <span style="opacity:.6;font-size:11px">· Version v36</span></p>
     <div class="card" id="rfCard">
       <h2 style="margin-top:0">🚩 Red Flags – das esse ich nicht</h2>
       <p class="sub" style="margin-top:0">Was hier steht, kommt in der ganzen App nicht mehr vor: Rezepte, Tages- &amp; Wochenplan, Coach, Snack-Ideen, Clever tauschen, Speisekarte und Tipps.</p>
@@ -628,15 +640,12 @@ details.ck-fold[open]>summary{margin-bottom:14px}
       <div class="row" style="margin-top:8px;align-items:center"><label style="margin:0">Schritt-Ziel</label><input type="number" id="hcStepGoal" style="max-width:120px" onchange="S.prefs.stepGoal=+this.value||10000;save();renderDash()"></div>
       <span class="sub" id="hcStatus"></span>
     </div>
-    <div class="row" style="margin-top:16px">
-      <button class="btn" onclick="saveSettings()">💾 Speichern</button>
-      <button class="btn ghost" onclick="askNotify()">🔔 Benachrichtigungen aktivieren</button>
+    <div class="row" id="setupDataRow" style="margin-top:16px">
       <button class="btn ghost" onclick="exportData()">⬇️ Daten exportieren</button>
       <button class="btn ghost" onclick="document.getElementById('importFile').click()">⬆️ Import</button>
       <input type="file" id="importFile" accept=".json" hidden>
       <button class="btn danger" onclick="if(confirm('Wirklich ALLE Daten löschen?')){localStorage.removeItem('apexfit');location.reload()}">🗑️ Reset</button>
     </div>
-    <p class="sub" style="margin-top:14px">📴 Offline-Cache: alle Daten liegen lokal auf dem Gerät (localStorage) – das Logbuch funktioniert auch ohne Netz im Keller-Gym.</p>
     <div style="margin-top:28px;padding-top:18px;border-top:1px solid var(--line);text-align:center">
       <p class="sub" id="syncStatus" style="margin-bottom:12px"></p>
       <button class="btn ghost sm" onclick="fbLogout()">🚪 Logout</button>
@@ -871,6 +880,48 @@ $('#overlay').addEventListener('click',e=>{if(e.target.id==='overlay')closeModal
 
 /* ═══════════ TABS ═══════════ */
 document.querySelectorAll('.nbtn').forEach(b=>b.onclick=()=>showTab(b.dataset.grp||b.dataset.tab));
+
+/* ═══ „Ich“ gruppiert & aufklappbar (28.11.2026) ═══ */
+const SETUP_GROUPS=[
+  ['Persönlich',['Red Flags','Profil','Tagesziele','KFA']],
+  ['Verbindungen',['Samsung Health','Fitbit','faCard']],
+  ['App',['Benachrichtigungen','Sprache']],
+];
+const SETUP_OPEN={};
+document.addEventListener('DOMContentLoaded',()=>{});
+setTimeout(function hookFA(){if(window.FitAccess&&FitAccess.render&&!FitAccess._lay){const r=FitAccess.render;FitAccess.render=function(){const x=r.apply(this,arguments);try{setupLayout();}catch(e){}return x;};FitAccess._lay=1;}else if(!window.FitAccess)setTimeout(hookFA,500);},0);
+function setupLayout(){
+  const tab=document.getElementById('tab-einstellungen');if(!tab)return;
+  const cards=[...tab.querySelectorAll('.card')].filter(c=>!c.parentElement.closest('.card'));
+  const key=c=>c.id==='faCard'?'faCard':((c.querySelector('h2')||{}).textContent||'').trim();
+  // 1) Gruppen einmalig anlegen und Karten einsortieren
+  if(!tab.querySelector('.set-grp')){
+    const anchor=tab.querySelector('p.sub');let prev=anchor;
+    SETUP_GROUPS.forEach(([name,keys])=>{
+      const g=document.createElement('div');g.className='set-grp';g.innerHTML=`<div class="set-grp-h">${name}</div>`;
+      keys.forEach(k=>{const c=cards.find(x=>{const t=key(x);return k==='faCard'?x.id==='faCard':t.includes(k);});if(c)g.appendChild(c);});
+      prev.insertAdjacentElement('afterend',g);prev=g;
+    });
+    const dg=document.createElement('div');dg.className='set-grp';dg.innerHTML='<div class="set-grp-h">Daten &amp; Konto</div>';
+    const row=document.getElementById('setupDataRow');if(row){const c=document.createElement('div');c.className='card set-data';c.appendChild(row);dg.appendChild(c);}
+    prev.insertAdjacentElement('afterend',dg);
+    tab.querySelectorAll('.grid.g2').forEach(g=>{if(!g.querySelector('.card'))g.remove();});
+    cards.filter(c=>!c.closest('.set-grp')).forEach(c=>tab.querySelector('.set-grp').appendChild(c));   // Unbekanntes nicht verlieren
+  }
+  // faCard kann später erzeugt werden → nachziehen
+  const fa=document.getElementById('faCard'),vg=[...tab.querySelectorAll('.set-grp')][1];
+  if(fa&&vg&&fa.parentElement!==vg)vg.appendChild(fa);
+  // 2) Aufklappen
+  tab.querySelectorAll('.set-grp .card:not(.set-data)').forEach(c=>{
+    const h=c.querySelector('h2');if(!h)return;
+    const k=key(c);c.classList.add('acc');c.style.marginTop='';
+    if(/Profil|Tagesziele|Sprache/.test(k)&&!c.querySelector('.acc-save')){const b=document.createElement('button');b.className='btn acc-save';b.style.cssText='width:100%;justify-content:center;margin-top:16px';b.textContent='💾 Speichern';b.onclick=()=>saveSettings();c.appendChild(b);}
+    if(!h.dataset.acc){h.dataset.acc=1;h.setAttribute('role','button');h.tabIndex=0;
+      h.onclick=()=>{SETUP_OPEN[k]=!c.classList.contains('open');c.classList.toggle('open',SETUP_OPEN[k]);};
+      h.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();h.click();}};}
+    c.classList.toggle('open',!!SETUP_OPEN[k]);
+  });
+}
 /* Navigation (28.11.2026): 5 Bereiche, Unter-Tabs als Segment-Leiste oben */
 const NAV_GROUPS={
   heute:[['dashboard','Heute']],
@@ -1814,7 +1865,7 @@ function renderDash(){
 }
 
 /* ═══════════ SETTINGS ═══════════ */
-function renderSettings(){try{renderNogos();}catch(e){}
+function renderSettings(){try{renderNogos();}catch(e){}setTimeout(()=>{try{setupLayout();}catch(e){console.warn(e)}},0);
   $('#setName').value=S.profile.name;$('#setGewicht').value=S.profile.gewicht;$('#setGroesse').value=S.profile.groesse;
   $('#setKfa').value=S.profile.kfa;$('#setZiel').value=S.profile.ziel;
   $('#setAlter').value=S.profile.alter;$('#setGeschlecht').value=S.profile.geschlecht||'m';
@@ -1888,7 +1939,7 @@ function loadScript(src){return new Promise((res,rej)=>{
 if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}
 /* Auto-Update (28.11.2026): Die Android-App lädt beim Zurückholen nicht neu → neue Versionen kamen erst nach
    komplettem Schließen an. Jetzt: beim Öffnen/Zurückkehren Version prüfen und bei Bedarf still neu laden. */
-const APP_BUILD='apexfit-v35';
+const APP_BUILD='apexfit-v36';
 async function checkAppUpdate(){
   try{
     if(document.querySelector('#overlay.show'))return;             // nicht mitten in einem Dialog
